@@ -1,15 +1,57 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
 
-const mockUsers = [
-  { id: '1', name: 'Baxrom Admin', email: 'baxrom@ecocompany.uz', role: 'super_admin', active: true, created: '2024-01-01' },
-  { id: '2', name: 'Sardor Editor', email: 'sardor@ecocompany.uz', role: 'editor', active: true, created: '2024-06-15' },
-  { id: '3', name: 'Test User', email: 'test@ecocompany.uz', role: 'editor', active: false, created: '2025-01-10' },
-];
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  is_active: boolean;
+  created_at?: string;
+}
 
 const UsersPage = () => {
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: () => api.get('/admin/users'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/users/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast({ title: "Foydalanuvchi o'chirildi" });
+      setDeleteId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Xato', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const users: User[] = data?.data || [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between">
@@ -32,7 +74,7 @@ const UsersPage = () => {
             </tr>
           </thead>
           <tbody>
-            {mockUsers.map(u => (
+            {users.map(u => (
               <tr key={u.id} className="border-b border-border last:border-0 hover:bg-secondary/50">
                 <td className="px-4 py-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
@@ -50,19 +92,37 @@ const UsersPage = () => {
                   </Badge>
                 </td>
                 <td className="px-4 py-3">
-                  <Badge className={u.active ? 'bg-secondary text-primary' : 'bg-muted text-muted-foreground'}>
-                    {u.active ? '● Aktiv' : '○ Passiv'}
+                  <Badge className={u.is_active ? 'bg-secondary text-primary' : 'bg-muted text-muted-foreground'}>
+                    {u.is_active ? '● Aktiv' : '○ Passiv'}
                   </Badge>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"><Edit2 className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(u.id)}><Trash2 className="h-4 w-4" /></Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {users.length === 0 && (
+          <div className="p-12 text-center text-muted-foreground">Foydalanuvchilar topilmadi</div>
+        )}
       </div>
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Foydalanuvchini o'chirish</AlertDialogTitle>
+            <AlertDialogDescription>Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => deleteId && deleteMutation.mutate(deleteId)}>
+              O'chirish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

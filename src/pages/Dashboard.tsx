@@ -1,15 +1,10 @@
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { Package, Trophy, Image, Mail, Plus, FolderOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-
-const statCards = [
-  { label: 'Mahsulotlar', icon: Package, count: 24, link: '/products', linkText: 'Barchasi' },
-  { label: 'Sertifikatlar', icon: Trophy, count: 8, link: '/certificates', linkText: 'Barchasi' },
-  { label: 'Albumlar', icon: Image, count: 6, link: '/gallery', linkText: 'Barchasi' },
-  { label: 'Yangi xabarlar', icon: Mail, count: 5, link: '/contacts', linkText: "Ko'rish", highlight: true },
-];
+import { api } from '@/lib/api';
 
 const quickActions = [
   { label: 'Mahsulot', link: '/products', icon: Package },
@@ -21,6 +16,56 @@ const quickActions = [
 const Dashboard = () => {
   const { user } = useAuth();
   const today = new Date().toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Fetch real counts
+  const { data: productsData } = useQuery({
+    queryKey: ['admin-products-count'],
+    queryFn: () => api.get('/admin/products', { per_page: 1 }),
+  });
+
+  const { data: certsData } = useQuery({
+    queryKey: ['admin-certs-count'],
+    queryFn: () => api.get('/admin/certificates', { per_page: 1 }),
+  });
+
+  const { data: albumsData } = useQuery({
+    queryKey: ['admin-albums-count'],
+    queryFn: () => api.get('/admin/gallery/albums'),
+  });
+
+  const { data: unreadData } = useQuery({
+    queryKey: ['admin-contacts-unread'],
+    queryFn: () => api.get('/admin/contacts/unread-count'),
+  });
+
+  const { data: contactsData } = useQuery({
+    queryKey: ['admin-contacts-recent'],
+    queryFn: () => api.get('/admin/contacts', { per_page: 5 }),
+  });
+
+  const { data: tokenData } = useQuery({
+    queryKey: ['admin-instagram-token'],
+    queryFn: () => api.get('/admin/instagram/token-status'),
+  });
+
+  const productCount = productsData?.data?.total ?? productsData?.data?.length ?? 0;
+  const certCount = certsData?.data?.total ?? certsData?.data?.length ?? 0;
+  const albumCount = albumsData?.data?.length ?? 0;
+  const unreadCount = unreadData?.data?.count ?? 0;
+  const recentContacts = contactsData?.data?.items || [];
+  const tokenStatus = tokenData?.data;
+
+  const statCards = [
+    { label: 'Mahsulotlar', icon: Package, count: productCount, link: '/products', linkText: 'Barchasi' },
+    { label: 'Sertifikatlar', icon: Trophy, count: certCount, link: '/certificates', linkText: 'Barchasi' },
+    { label: 'Albumlar', icon: Image, count: albumCount, link: '/gallery', linkText: 'Barchasi' },
+    { label: 'Yangi xabarlar', icon: Mail, count: unreadCount, link: '/contacts', linkText: "Ko'rish", highlight: true },
+  ];
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div className="space-y-8">
@@ -46,7 +91,7 @@ const Dashboard = () => {
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
                 <card.icon className="h-6 w-6 text-primary" />
               </div>
-              {card.highlight && (
+              {card.highlight && card.count > 0 && (
                 <span className="flex h-3 w-3 rounded-full bg-destructive" />
               )}
             </div>
@@ -66,21 +111,19 @@ const Dashboard = () => {
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="mb-4 text-lg font-semibold text-foreground">So'nggi xabarlar</h3>
             <div className="space-y-3">
-              {[
-                { name: 'Alisher T.', subject: 'Narx so\'rash', date: '04.03, 14:32', unread: true },
-                { name: 'Nodira K.', subject: 'Buyurtma', date: '03.03, 09:15', unread: true },
-                { name: 'Jamshid M.', subject: 'Hamkorlik', date: '02.03, 16:45', unread: false },
-              ].map((msg, i) => (
-                <div key={i} className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-muted">
-                  {msg.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />}
-                  {!msg.unread && <span className="h-2.5 w-2.5 shrink-0" />}
+              {recentContacts.length > 0 ? recentContacts.map((msg: any) => (
+                <div key={msg.id} className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-muted">
+                  {!msg.is_read && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />}
+                  {msg.is_read && <span className="h-2.5 w-2.5 shrink-0" />}
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">{msg.name}</p>
-                    <p className="text-xs text-muted-foreground">{msg.subject}</p>
+                    <p className="text-xs text-muted-foreground">{msg.subject || msg.message?.slice(0, 50)}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{msg.date}</span>
+                  <span className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</span>
                 </div>
-              ))}
+              )) : (
+                <p className="text-sm text-muted-foreground">Xabarlar yo'q</p>
+              )}
             </div>
             <Link to="/contacts" className="mt-3 inline-block text-sm text-primary hover:underline">
               Barcha xabarlar →
@@ -97,20 +140,22 @@ const Dashboard = () => {
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Holat:</span>
-                <span className="font-medium text-primary">✅ Faol</span>
+                <span className={`font-medium ${tokenStatus?.is_valid ? 'text-primary' : 'text-destructive'}`}>
+                  {tokenStatus?.is_valid ? '✅ Faol' : tokenStatus ? '❌ Nofaol' : '⏳ Tekshirilmoqda...'}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Muddati:</span>
-                <span className="font-medium text-foreground">45 kun qoldi</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Yangilangan:</span>
-                <span className="text-muted-foreground">2 soat oldin</span>
-              </div>
+              {tokenStatus?.days_remaining !== undefined && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Muddati:</span>
+                  <span className="font-medium text-foreground">{tokenStatus.days_remaining} kun qoldi</span>
+                </div>
+              )}
             </div>
-            <Button variant="outline" size="sm" className="mt-4 w-full border-primary text-primary hover:bg-secondary">
-              Keshni yangilash
-            </Button>
+            <Link to="/instagram">
+              <Button variant="outline" size="sm" className="mt-4 w-full border-primary text-primary hover:bg-secondary">
+                Batafsil →
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

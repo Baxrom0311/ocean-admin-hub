@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, Globe, Home, BarChart3, Palette, Bot, Lock, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -6,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
 
 const tabs = [
   { key: 'contact', label: 'Kontakt', icon: Phone },
@@ -18,11 +21,108 @@ const tabs = [
   { key: 'secret', label: 'Maxfiy', icon: Lock, superAdmin: true },
 ];
 
+// Group settings by tab
+const settingsLayout: Record<string, { key: string; label: string; type?: string; rows?: number; maxLength?: number }[]> = {
+  contact: [
+    { key: 'phone_1', label: 'Telefon 1' },
+    { key: 'phone_2', label: 'Telefon 2' },
+    { key: 'email', label: 'Email', type: 'email' },
+    { key: 'address_uz', label: 'Manzil (UZ)' },
+    { key: 'address_ru', label: 'Manzil (RU)' },
+    { key: 'working_hours', label: 'Ish vaqti' },
+    { key: 'map_embed', label: 'Xarita embed', type: 'textarea', rows: 3 },
+  ],
+  social: [
+    { key: 'instagram_url', label: '📷 Instagram' },
+    { key: 'telegram_url', label: '✈️ Telegram' },
+    { key: 'facebook_url', label: '👤 Facebook' },
+    { key: 'youtube_url', label: '▶️ YouTube' },
+  ],
+  hero: [
+    { key: 'hero_title_uz', label: 'Sarlavha (UZ)' },
+    { key: 'hero_title_ru', label: 'Sarlavha (RU)' },
+    { key: 'hero_title_en', label: 'Sarlavha (EN)' },
+    { key: 'hero_subtitle_uz', label: 'Kichik matn (UZ)' },
+    { key: 'hero_button_text', label: 'Tugma matni' },
+  ],
+  about: [
+    { key: 'about_title_uz', label: 'Sarlavha (UZ)' },
+    { key: 'about_text_uz', label: 'Matn (UZ)', type: 'textarea', rows: 4 },
+    { key: 'about_title_ru', label: 'Sarlavha (RU)' },
+    { key: 'about_text_ru', label: 'Matn (RU)', type: 'textarea', rows: 4 },
+  ],
+  stats: [
+    { key: 'stat_years', label: 'Yillar tajriba' },
+    { key: 'stat_clients', label: 'Mijozlar' },
+    { key: 'stat_products', label: 'Mahsulotlar' },
+    { key: 'stat_cities', label: 'Shaharlar' },
+  ],
+  brand: [
+    { key: 'meta_title', label: 'Meta sarlavha' },
+    { key: 'meta_description', label: 'Meta tavsif (max 160)', type: 'textarea', rows: 2, maxLength: 160 },
+  ],
+  chatbot: [
+    { key: 'chatbot_welcome', label: 'Salom xabari', type: 'textarea', rows: 3 },
+    { key: 'ai_system_prompt', label: 'AI System Prompt', type: 'textarea', rows: 6 },
+  ],
+  secret: [
+    { key: 'telegram_bot_token', label: 'Telegram Bot Token', type: 'password' },
+    { key: 'telegram_chat_ids', label: 'Telegram Chat IDlar' },
+    { key: 'smtp_host', label: 'SMTP Host' },
+    { key: 'smtp_user', label: 'SMTP User' },
+    { key: 'smtp_password', label: 'SMTP Password', type: 'password' },
+    { key: 'anthropic_api_key', label: 'Claude API Key', type: 'password' },
+    { key: 'cloudinary_api_key', label: 'Cloudinary API Key', type: 'password' },
+    { key: 'instagram_access_token', label: 'Instagram Access Token', type: 'password' },
+  ],
+};
+
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('contact');
   const { isSuperAdmin } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState<Record<string, string>>({});
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-settings'],
+    queryFn: () => api.get('/admin/settings'),
+  });
+
+  // Load settings into form
+  useEffect(() => {
+    if (data?.data) {
+      const map: Record<string, string> = {};
+      for (const s of data.data) {
+        map[s.key] = s.value || '';
+      }
+      setFormData(map);
+    }
+  }, [data]);
+
+  const saveMutation = useMutation({
+    mutationFn: (items: { key: string; value: string }[]) => api.put('/admin/settings/bulk', items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      toast({ title: 'Sozlamalar saqlandi ✅' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Xato', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const handleSave = () => {
+    const fields = settingsLayout[activeTab] || [];
+    const items = fields.map(f => ({ key: f.key, value: formData[f.key] || '' }));
+    saveMutation.mutate(items);
+  };
+
+  const updateField = (key: string, value: string) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+  };
 
   const visibleTabs = tabs.filter(t => !t.superAdmin || isSuperAdmin);
+  const currentFields = settingsLayout[activeTab] || [];
 
   return (
     <div className="space-y-6">
@@ -40,119 +140,48 @@ const Settings = () => {
         ))}
       </div>
 
-      {/* Tab content */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        {activeTab === 'contact' && (
-          <div className="space-y-4 max-w-lg">
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Telefon 1</label><Input placeholder="+998 __ ___ __ __" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Telefon 2</label><Input placeholder="+998 __ ___ __ __" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Email</label><Input type="email" placeholder="info@ecocompany.uz" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Manzil (UZ)</label><Input placeholder="Toshkent shahri..." /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Manzil (RU)</label><Input placeholder="г. Ташкент..." /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Ish vaqti</label><Input placeholder="Dush-Juma: 09:00 - 18:00" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Xarita embed</label><Textarea placeholder="<iframe..." rows={3} /></div>
-          </div>
-        )}
-
-        {activeTab === 'social' && (
-          <div className="space-y-4 max-w-lg">
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">📷 Instagram</label><Input placeholder="instagram.com/ecocompany" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">✈️ Telegram</label><Input placeholder="t.me/ecocompany" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">👤 Facebook</label><Input placeholder="facebook.com/ecocompany" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">▶️ YouTube</label><Input placeholder="youtube.com/@ecocompany" /></div>
-          </div>
-        )}
-
-        {activeTab === 'hero' && (
-          <div className="space-y-4 max-w-lg">
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Sarlavha (UZ)</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Sarlavha (RU)</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Sarlavha (EN)</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Kichik matn (UZ)</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Tugma matni</label><Input /></div>
-            <div className="rounded-lg border border-border bg-muted p-8 text-center text-muted-foreground">
-              Fon rasmi preview — [O'zgartirish]
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'about' && (
-          <div className="space-y-4 max-w-lg">
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Sarlavha (UZ)</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Matn (UZ)</label><Textarea rows={4} /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Sarlavha (RU)</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Matn (RU)</label><Textarea rows={4} /></div>
-          </div>
-        )}
-
-        {activeTab === 'stats' && (
-          <div className="space-y-4 max-w-lg">
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Yillar tajriba</label><Input placeholder="10+" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Mijozlar</label><Input placeholder="5000+" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Mahsulotlar</label><Input placeholder="50+" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Shaharlar</label><Input placeholder="15" /></div>
-            <div className="mt-4 flex gap-4 rounded-lg bg-muted p-4">
-              {['10+ Yil', '5000+ Mijoz', '50+ Mahsulot', '15 Shahar'].map(s => (
-                <div key={s} className="flex-1 text-center text-sm font-semibold text-foreground">{s}</div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'brand' && (
-          <div className="space-y-4 max-w-lg">
-            <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">Logo yuklash</div>
-            <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">Favicon yuklash (32x32)</div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Meta sarlavha</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Meta tavsif (max 160)</label><Textarea rows={2} maxLength={160} /></div>
-          </div>
-        )}
-
-        {activeTab === 'chatbot' && (
-          <div className="space-y-4 max-w-lg">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">Chatbot yoqilgan</label>
-              <Switch />
-            </div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Salom xabari</label><Textarea placeholder="Salom! ECO COMPANY yordamchisiman 💧..." rows={3} /></div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Tez-tez so'raladigan savollar</label>
-              <div className="space-y-2">
-                <div className="rounded-lg border border-border p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Narxlar qancha?</p>
-                      <p className="text-xs text-muted-foreground">5L — 12,000 so'm, 19L — 45,000 so'm</p>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive">✕</Button>
-                  </div>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" className="mt-2 text-primary">+ Savol qo'shish</Button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'secret' && (
-          <div className="space-y-4 max-w-lg">
-            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-6">
+          {activeTab === 'secret' && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
               ⚠️ Faqat super_admin ko'rishi mumkin
             </div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Telegram Bot Token</label><Input type="password" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Telegram Chat IDlar</label><Input placeholder="123,456,789" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">SMTP Host</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">SMTP User</label><Input /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">SMTP Password</label><Input type="password" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Claude API Key</label><Input type="password" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Cloudinary API Key</label><Input type="password" /></div>
-            <div><label className="mb-1.5 block text-sm font-medium text-foreground">Instagram Access Token</label><Input type="password" /></div>
-          </div>
-        )}
+          )}
 
-        <div className="mt-6">
-          <Button className="ocean-gradient-btn text-primary-foreground hover:opacity-90">Saqlash</Button>
+          <div className="space-y-4 max-w-lg">
+            {currentFields.map(field => (
+              <div key={field.key}>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">{field.label}</label>
+                {field.type === 'textarea' ? (
+                  <Textarea
+                    value={formData[field.key] || ''}
+                    onChange={e => updateField(field.key, e.target.value)}
+                    rows={field.rows || 3}
+                    maxLength={field.maxLength}
+                  />
+                ) : (
+                  <Input
+                    type={field.type || 'text'}
+                    value={formData[field.key] || ''}
+                    onChange={e => updateField(field.key, e.target.value)}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6">
+            <Button className="ocean-gradient-btn text-primary-foreground hover:opacity-90"
+              onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Saqlanmoqda...' : 'Saqlash'}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
