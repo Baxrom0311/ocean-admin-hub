@@ -27,8 +27,12 @@ function encodePath(publicId: string): string {
 export async function deleteMediaUrl(url: string | null | undefined): Promise<boolean> {
   const publicId = extractMediaPublicId(url);
   if (!publicId) return false;
-  await api.delete(`/admin/upload/${encodePath(publicId)}`);
-  return true;
+  try {
+    await api.delete(`/admin/upload/${encodePath(publicId)}`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function deleteMediaUrls(urls: Array<string | null | undefined>): Promise<void> {
@@ -37,6 +41,10 @@ export async function deleteMediaUrls(urls: Array<string | null | undefined>): P
     const publicId = extractMediaPublicId(url);
     if (!publicId || seen.has(publicId)) continue;
     seen.add(publicId);
-    await api.delete(`/admin/upload/${encodePath(publicId)}`);
+    try {
+      await api.delete(`/admin/upload/${encodePath(publicId)}`);
+    } catch {
+      // Ignore best-effort cleanup failures so UI state can still update.
+    }
   }
 }

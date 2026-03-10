@@ -1,13 +1,29 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Globe, Home, BarChart3, Palette, Bot, Info } from 'lucide-react';
+import { Phone, Globe, Home, BarChart3, Palette, Bot, Info, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
+import ImageUpload, { SingleFileUpload } from '@/components/ImageUpload';
+import { deleteMediaUrl } from '@/lib/media';
+
+const LEGACY_PARTNER_LOGOS = [
+  '/media/partners/NGMK.jpg',
+  '/media/partners/MININNOVATION.jpg',
+  '/media/partners/UZAVTO.jpg',
+  '/media/partners/ONA.jpg',
+  '/media/partners/ICHF.jpg',
+  '/media/partners/NBU.jpg',
+  '/media/partners/URSU.jpg',
+];
+
+const isLegacyPartnerLogoList = (value: string[]) =>
+  value.length === LEGACY_PARTNER_LOGOS.length
+  && value.every((item, index) => item === LEGACY_PARTNER_LOGOS[index]);
 
 const tabs = [
   { key: 'contact', label: 'Kontakt', icon: Phone },
@@ -16,6 +32,7 @@ const tabs = [
   { key: 'about', label: 'Haqimizda', icon: Info },
   { key: 'stats', label: 'Statistika', icon: BarChart3 },
   { key: 'brand', label: 'Brand', icon: Palette },
+  { key: 'partners', label: 'Hamkorlar', icon: Users },
   { key: 'chatbot', label: 'AI Prompt', icon: Bot },
 ];
 
@@ -55,6 +72,7 @@ const settingsLayout: Record<string, { key: string; label: string; type?: string
     { key: 'hero_subtitle_uz', label: 'Kichik matn (UZ)' },
     { key: 'hero_subtitle_ru', label: 'Kichik matn (RU)' },
     { key: 'hero_subtitle_en', label: 'Kichik matn (EN)' },
+    { key: 'hero_image_url', label: 'Hero rasmi', type: 'image' },
   ],
   about: [
     { key: 'about_page_title_uz', label: 'Page sarlavha (UZ)' },
@@ -83,11 +101,35 @@ const settingsLayout: Record<string, { key: string; label: string; type?: string
     { key: 'stats_cities', label: 'Shaharlar' },
   ],
   brand: [
-    { key: 'logo_url', label: 'Logo URL' },
+    { key: 'logo_url', label: 'Logo', type: 'image' },
+  ],
+  partners: [
+    { key: 'partner_logos', label: 'Hamkor logolari', type: 'images' },
   ],
   chatbot: [
     { key: 'ai_system_prompt', label: 'AI System Prompt', type: 'textarea', rows: 6 },
   ],
+};
+
+const IMAGE_LIST_KEYS = new Set(
+  Object.values(settingsLayout)
+    .flat()
+    .filter(field => field.type === 'images')
+    .map(field => field.key),
+);
+
+const parseImageListValue = (value: unknown, fallback: string[] = []) => {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  if (typeof value !== 'string' || !value.trim()) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
 };
 
 const Settings = () => {
@@ -95,7 +137,7 @@ const Settings = () => {
   const { isSuperAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<Record<string, string | string[]>>({});
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-settings'],
@@ -106,9 +148,11 @@ const Settings = () => {
   // Load settings into form
   useEffect(() => {
     if (data?.data) {
-      const map: Record<string, string> = {};
+      const map: Record<string, string | string[]> = {};
       for (const s of data.data) {
-        map[s.key] = s.value || '';
+        map[s.key] = IMAGE_LIST_KEYS.has(s.key)
+          ? parseImageListValue(s.value)
+          : (s.value || '');
       }
 
       for (const [targetKey, legacyKeys] of Object.entries(legacyKeyFallbacks)) {
@@ -117,6 +161,10 @@ const Settings = () => {
         if (legacyValue) {
           map[targetKey] = legacyValue;
         }
+      }
+
+      if (Array.isArray(map.partner_logos) && isLegacyPartnerLogoList(map.partner_logos)) {
+        map.partner_logos = [];
       }
 
       setFormData(map);
@@ -136,11 +184,16 @@ const Settings = () => {
 
   const handleSave = () => {
     const fields = settingsLayout[activeTab] || [];
-    const items = fields.map(f => ({ key: f.key, value: formData[f.key] || '' }));
+    const items = fields.map((f) => ({
+      key: f.key,
+      value: f.type === 'images'
+        ? JSON.stringify(Array.isArray(formData[f.key]) ? formData[f.key] : [])
+        : (typeof formData[f.key] === 'string' ? formData[f.key] : ''),
+    }));
     saveMutation.mutate(items);
   };
 
-  const updateField = (key: string, value: string) => {
+  const updateField = (key: string, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
@@ -189,18 +242,39 @@ const Settings = () => {
           <div className="max-w-lg space-y-4">
             {currentFields.map(field => (
               <div key={field.key}>
-                <label className="mb-1.5 block text-sm font-medium text-foreground">{field.label}</label>
+                {field.type !== 'image' && (
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">{field.label}</label>
+                )}
                 {field.type === 'textarea' ? (
                   <Textarea
-                    value={formData[field.key] || ''}
+                    value={typeof formData[field.key] === 'string' ? formData[field.key] : ''}
                     onChange={e => updateField(field.key, e.target.value)}
                     rows={field.rows || 3}
                     maxLength={field.maxLength}
                   />
+                ) : field.type === 'images' ? (
+                  <ImageUpload
+                    value={Array.isArray(formData[field.key]) ? formData[field.key] : []}
+                    onChange={(urls) => updateField(field.key, urls)}
+                    onRemove={deleteMediaUrl}
+                    folder="partners"
+                    label={field.label}
+                    accept="image/*"
+                    max={24}
+                  />
+                ) : field.type === 'image' ? (
+                  <SingleFileUpload
+                    value={typeof formData[field.key] === 'string' ? formData[field.key] : ''}
+                    onChange={(url) => updateField(field.key, url)}
+                    onRemove={deleteMediaUrl}
+                    folder="settings"
+                    label={field.label}
+                    accept="image/*"
+                  />
                 ) : (
                   <Input
                     type={field.type || 'text'}
-                    value={formData[field.key] || ''}
+                    value={typeof formData[field.key] === 'string' ? formData[field.key] : ''}
                     onChange={e => updateField(field.key, e.target.value)}
                   />
                 )}

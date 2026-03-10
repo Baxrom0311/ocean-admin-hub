@@ -1,11 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -15,8 +13,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
-import { SingleFileUpload } from '@/components/ImageUpload';
-import { deleteMediaUrl } from '@/lib/media';
 
 interface Category {
   id: string;
@@ -24,19 +20,16 @@ interface Category {
   name_ru?: string;
   name_en?: string;
   slug: string;
-  icon?: string;
-  is_active: boolean;
   order_index: number;
 }
 
-const emptyForm = { name_uz: '', name_ru: '', name_en: '', slug: '', icon: '', order_index: 0, is_active: true };
+const emptyForm = { name_uz: '', name_ru: '', name_en: '', slug: '', order_index: 0 };
 
 const Categories = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<Category | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const originalIconRef = useRef('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -77,15 +70,13 @@ const Categories = () => {
 
   const openCreate = () => {
     setEditItem(null);
-    originalIconRef.current = '';
     setForm(emptyForm);
     setIsDialogOpen(true);
   };
 
   const openEdit = (c: Category) => {
     setEditItem(c);
-    originalIconRef.current = c.icon || '';
-    setForm({ name_uz: c.name_uz, name_ru: c.name_ru || '', name_en: c.name_en || '', slug: c.slug, icon: c.icon || '', order_index: c.order_index, is_active: c.is_active });
+    setForm({ name_uz: c.name_uz, name_ru: c.name_ru || '', name_en: c.name_en || '', slug: c.slug, order_index: c.order_index });
     setIsDialogOpen(true);
   };
 
@@ -93,20 +84,12 @@ const Categories = () => {
     setIsDialogOpen(false);
     setEditItem(null);
     setForm(emptyForm);
-    originalIconRef.current = '';
-  };
-
-  const closeDialog = async () => {
-    if (form.icon && form.icon !== originalIconRef.current) {
-      await deleteMediaUrl(form.icon);
-    }
-    resetDialog();
   };
 
   const handleSubmit = () => {
     if (!form.name_uz.trim()) { toast({ title: 'Nomi (UZ) majburiy', variant: 'destructive' }); return; }
     if (!form.slug.trim()) { toast({ title: 'Slug majburiy', variant: 'destructive' }); return; }
-    const payload = { ...form, name_ru: form.name_ru || undefined, name_en: form.name_en || undefined, icon: form.icon || undefined };
+    const payload = { ...form, name_ru: form.name_ru || undefined, name_en: form.name_en || undefined };
     if (editItem) {
       updateMutation.mutate({ id: editItem.id, data: payload });
     } else {
@@ -142,7 +125,6 @@ const Categories = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Nomi (UZ)</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Nomi (RU)</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Slug</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Holat</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">Amallar</th>
               </tr>
             </thead>
@@ -152,11 +134,6 @@ const Categories = () => {
                   <td className="px-4 py-3 font-medium text-foreground">{c.name_uz}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.name_ru || '—'}</td>
                   <td className="px-4 py-3"><code className="rounded bg-muted px-2 py-0.5 text-xs">{c.slug}</code></td>
-                  <td className="px-4 py-3">
-                    <Badge className={c.is_active ? 'bg-secondary text-primary' : 'bg-muted text-muted-foreground'}>
-                      {c.is_active ? '● Aktiv' : '○ Passiv'}
-                    </Badge>
-                  </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(c)}><Edit2 className="h-4 w-4" /></Button>
@@ -176,7 +153,7 @@ const Categories = () => {
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
         if (!open && !isSaving) {
-          void closeDialog();
+          resetDialog();
         }
       }}>
         <DialogContent className="sm:max-w-md">
@@ -200,27 +177,9 @@ const Categories = () => {
               <label className="mb-1.5 block text-sm font-medium">Slug *</label>
               <Input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: autoSlug(e.target.value) }))} />
             </div>
-
-            <SingleFileUpload
-              value={form.icon}
-              onChange={(url) => setForm(f => ({ ...f, icon: url }))}
-              onRemove={async (url) => {
-                if (url !== originalIconRef.current) {
-                  await deleteMediaUrl(url);
-                }
-              }}
-              folder="categories"
-              label="Ikonka/Rasm"
-              accept="image/*"
-            />
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Aktiv</label>
-              <Switch checked={form.is_active} onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))} />
-            </div>
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => void closeDialog()}>Bekor qilish</Button>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={resetDialog}>Bekor qilish</Button>
             <Button className="w-full ocean-gradient-btn text-primary-foreground sm:w-auto" onClick={handleSubmit} disabled={isSaving}>
               {isSaving ? 'Saqlanmoqda...' : editItem ? 'Saqlash' : 'Yaratish'}
             </Button>
