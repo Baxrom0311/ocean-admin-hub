@@ -34,26 +34,26 @@
 
     --radius: 0.5rem;
 
-    --sidebar-bg: 212 85% 6%;
-    --sidebar-fg: 199 30% 75%;
+    --sidebar-bg: 0 0% 100%;
+    --sidebar-fg: 213 24% 28%;
     --sidebar-active: 199 98% 42%;
-    --sidebar-hover: 212 60% 12%;
-    --sidebar-separator: 207 50% 22%;
-    --sidebar-badge: 212 60% 12%;
-    --sidebar-badge-text: 199 92% 56%;
+    --sidebar-hover: 199 92% 94%;
+    --sidebar-separator: 199 30% 86%;
+    --sidebar-badge: 199 92% 94%;
+    --sidebar-badge-text: 199 98% 42%;
 
     --ocean-gradient: linear-gradient(135deg, hsl(212, 85%, 6%), hsl(207, 70%, 15%), hsl(199, 98%, 32%));
     --ocean-light: 199 92% 94%;
     --ocean-medium: 199 70% 60%;
     --ocean-deep: 213 67% 10%;
 
-    --sidebar-background: 212 85% 6%;
-    --sidebar-foreground: 199 30% 75%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 213 24% 28%;
     --sidebar-primary: 199 98% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 212 60% 12%;
-    --sidebar-accent-foreground: 199 30% 90%;
-    --sidebar-border: 207 50% 22%;
+    --sidebar-accent: 199 92% 94%;
+    --sidebar-accent-foreground: 213 67% 10%;
+    --sidebar-border: 199 30% 86%;
     --sidebar-ring: 199 98% 42%;
   }
 

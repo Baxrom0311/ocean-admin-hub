@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import { SingleFileUpload } from '@/components/ImageUpload';
+import { deleteMediaUrl } from '@/lib/media';
 
 interface Category {
   id: string;
@@ -35,6 +36,7 @@ const Categories = () => {
   const [editItem, setEditItem] = useState<Category | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const originalIconRef = useRef('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -48,7 +50,7 @@ const Categories = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       toast({ title: 'Kategoriya yaratildi ✅' });
-      closeDialog();
+      resetDialog();
     },
     onError: (err: Error) => toast({ title: 'Xato', description: err.message, variant: 'destructive' }),
   });
@@ -58,7 +60,7 @@ const Categories = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       toast({ title: 'Kategoriya yangilandi ✅' });
-      closeDialog();
+      resetDialog();
     },
     onError: (err: Error) => toast({ title: 'Xato', description: err.message, variant: 'destructive' }),
   });
@@ -75,17 +77,31 @@ const Categories = () => {
 
   const openCreate = () => {
     setEditItem(null);
+    originalIconRef.current = '';
     setForm(emptyForm);
     setIsDialogOpen(true);
   };
 
   const openEdit = (c: Category) => {
     setEditItem(c);
+    originalIconRef.current = c.icon || '';
     setForm({ name_uz: c.name_uz, name_ru: c.name_ru || '', name_en: c.name_en || '', slug: c.slug, icon: c.icon || '', order_index: c.order_index, is_active: c.is_active });
     setIsDialogOpen(true);
   };
 
-  const closeDialog = () => { setIsDialogOpen(false); setEditItem(null); setForm(emptyForm); };
+  const resetDialog = () => {
+    setIsDialogOpen(false);
+    setEditItem(null);
+    setForm(emptyForm);
+    originalIconRef.current = '';
+  };
+
+  const closeDialog = async () => {
+    if (form.icon && form.icon !== originalIconRef.current) {
+      await deleteMediaUrl(form.icon);
+    }
+    resetDialog();
+  };
 
   const handleSubmit = () => {
     if (!form.name_uz.trim()) { toast({ title: 'Nomi (UZ) majburiy', variant: 'destructive' }); return; }
@@ -105,9 +121,9 @@ const Categories = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">Kategoriyalar</h1>
-        <Button className="gap-2 ocean-gradient-btn text-primary-foreground hover:opacity-90" onClick={openCreate}>
+        <Button className="w-full gap-2 ocean-gradient-btn text-primary-foreground hover:opacity-90 sm:w-auto" onClick={openCreate}>
           <Plus className="h-4 w-4" /> Yangi kategoriya
         </Button>
       </motion.div>
@@ -120,7 +136,7 @@ const Categories = () => {
 
       {!isLoading && (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Nomi (UZ)</th>
@@ -158,7 +174,11 @@ const Categories = () => {
       )}
 
       {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={v => !v && closeDialog()}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        if (!open && !isSaving) {
+          void closeDialog();
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editItem ? 'Kategoriyani tahrirlash' : 'Yangi kategoriya'}</DialogTitle>
@@ -184,6 +204,11 @@ const Categories = () => {
             <SingleFileUpload
               value={form.icon}
               onChange={(url) => setForm(f => ({ ...f, icon: url }))}
+              onRemove={async (url) => {
+                if (url !== originalIconRef.current) {
+                  await deleteMediaUrl(url);
+                }
+              }}
               folder="categories"
               label="Ikonka/Rasm"
               accept="image/*"
@@ -194,9 +219,9 @@ const Categories = () => {
               <Switch checked={form.is_active} onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))} />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Bekor qilish</Button>
-            <Button className="ocean-gradient-btn text-primary-foreground" onClick={handleSubmit} disabled={isSaving}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => void closeDialog()}>Bekor qilish</Button>
+            <Button className="w-full ocean-gradient-btn text-primary-foreground sm:w-auto" onClick={handleSubmit} disabled={isSaving}>
               {isSaving ? 'Saqlanmoqda...' : editItem ? 'Saqlash' : 'Yaratish'}
             </Button>
           </DialogFooter>

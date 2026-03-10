@@ -1,59 +1,76 @@
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { RefreshCw, Key, ExternalLink } from 'lucide-react';
+import { ExternalLink, Plus, Save, Trash2, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 
-interface InstagramPost {
+interface InstagramVideo {
   id: string;
-  media_type: string;
-  media_url?: string;
-  thumbnail_url?: string;
+  url: string;
   permalink: string;
-  caption?: string;
-  timestamp?: string;
+  embed_url: string;
+  media_type: string;
+  kind: string;
 }
 
 const InstagramPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [links, setLinks] = useState<string[]>(['']);
 
-  const { data: tokenData, isLoading: tokenLoading } = useQuery({
-    queryKey: ['admin-instagram-token'],
+  const { data: statusData, isLoading: statusLoading } = useQuery({
+    queryKey: ['admin-instagram-status'],
     queryFn: () => api.get('/admin/instagram/token-status'),
   });
 
-  const { data: postsData, isLoading: postsLoading } = useQuery({
-    queryKey: ['instagram-posts'],
-    queryFn: () => api.get('/instagram/posts'),
+  const { data: linksData, isLoading: linksLoading } = useQuery({
+    queryKey: ['admin-instagram-links'],
+    queryFn: () => api.get('/admin/instagram/links'),
   });
 
-  const refreshMutation = useMutation({
-    mutationFn: () => api.post('/admin/instagram/refresh'),
+  useEffect(() => {
+    const savedLinks = (linksData?.data || []).map((item: InstagramVideo) => item.url);
+    setLinks(savedLinks.length > 0 ? savedLinks : ['']);
+  }, [linksData]);
+
+  const saveMutation = useMutation({
+    mutationFn: (items: string[]) => api.put('/admin/instagram/links', {
+      items: items
+        .map(url => url.trim())
+        .filter(Boolean)
+        .map(url => ({ url })),
+    }),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['instagram-posts'] });
-      toast({ title: res?.message || 'Kesh yangilandi' });
+      queryClient.invalidateQueries({ queryKey: ['admin-instagram-links'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-instagram-status'] });
+      queryClient.invalidateQueries({ queryKey: ['instagram-videos'] });
+      toast({ title: res?.message || 'Instagram linklari saqlandi' });
     },
     onError: (err: Error) => {
       toast({ title: 'Xato', description: err.message, variant: 'destructive' });
     },
   });
 
-  const refreshTokenMutation = useMutation({
-    mutationFn: () => api.post('/admin/instagram/refresh-token'),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-instagram-token'] });
-      toast({ title: res?.success ? 'Token yangilandi' : 'Token yangilanmadi', variant: res?.success ? 'default' : 'destructive' });
-    },
-    onError: (err: Error) => {
-      toast({ title: 'Xato', description: err.message, variant: 'destructive' });
-    },
-  });
+  const status = statusData?.data;
+  const videos: InstagramVideo[] = linksData?.data || [];
+  const isLoading = statusLoading || linksLoading;
 
-  const tokenStatus = tokenData?.data;
-  const posts: InstagramPost[] = postsData?.data || [];
+  const updateLink = (index: number, value: string) => {
+    setLinks(prev => prev.map((item, current) => current === index ? value : item));
+  };
+
+  const addLink = () => setLinks(prev => [...prev, '']);
+  const removeLink = (index: number) => {
+    setLinks(prev => {
+      const next = prev.filter((_, current) => current !== index);
+      return next.length > 0 ? next : [''];
+    });
+  };
+
+  const handleSave = () => saveMutation.mutate(links);
 
   return (
     <div className="space-y-6">
@@ -61,82 +78,100 @@ const InstagramPage = () => {
         <h1 className="text-2xl font-bold text-foreground">Instagram</h1>
       </motion.div>
 
-      {/* Token status */}
-      <div className="rounded-xl border border-border bg-card p-6 ocean-shadow">
-        <h3 className="mb-4 text-lg font-semibold text-foreground">📸 Instagram Token Holati</h3>
-        {tokenLoading ? (
+      <div className="rounded-xl border border-border bg-card p-4 ocean-shadow sm:p-6">
+        <h3 className="mb-4 text-lg font-semibold text-foreground">📸 Instagram video linklari</h3>
+        {isLoading ? (
           <div className="flex justify-center py-4">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
-        ) : tokenStatus ? (
+        ) : status ? (
           <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-muted-foreground">Holat:</span>
-              <span className={`font-medium ${tokenStatus.is_valid ? 'text-primary' : 'text-destructive'}`}>
-                {tokenStatus.is_valid ? '✅ Faol' : '❌ Muddati o\'tgan'}
+              <span className={`font-medium ${status.is_configured ? 'text-primary' : 'text-destructive'}`}>
+                {status.is_configured ? '✅ Linklar saqlangan' : '❌ Linklar kiritilmagan'}
               </span>
             </div>
-            {tokenStatus.days_remaining !== undefined && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Muddati:</span>
-                <span className="font-medium text-foreground">{tokenStatus.days_remaining} kun qoldi</span>
-              </div>
-            )}
-            {tokenStatus.last_refreshed && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Yangilandi:</span>
-                <span className="text-muted-foreground">{tokenStatus.last_refreshed}</span>
-              </div>
-            )}
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-muted-foreground">Video soni:</span>
+              <span className="font-medium text-foreground">{status.link_count} ta</span>
+            </div>
+            <p className="rounded-lg bg-secondary/50 p-3 text-muted-foreground">{status.message}</p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Token sozlanmagan. .env faylda INSTAGRAM_ACCESS_TOKEN ni qo'shing.</p>
+          <p className="text-sm text-muted-foreground">Instagram videolarini qo'lda link orqali boshqaring.</p>
         )}
-        <div className="mt-4 flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2 border-primary text-primary hover:bg-secondary"
-            onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`} /> Keshni yangilash
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Linklarni boshqarish</h3>
+            <p className="text-sm text-muted-foreground">Instagram `reel`, `post` yoki `tv` linklarini kiriting.</p>
+          </div>
+          <Button variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={addLink}>
+            <Plus className="h-4 w-4" /> Link qo'shish
           </Button>
-          <Button variant="outline" size="sm" className="gap-2"
-            onClick={() => refreshTokenMutation.mutate()} disabled={refreshTokenMutation.isPending}>
-            <Key className="h-3.5 w-3.5" /> Tokenni yangilash
+        </div>
+
+        <div className="space-y-3">
+          {links.map((link, index) => (
+            <div key={index} className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={link}
+                onChange={e => updateLink(index, e.target.value)}
+                placeholder="https://www.instagram.com/reel/..."
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={() => removeLink(index)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <Button className="gap-2 ocean-gradient-btn text-primary-foreground" onClick={handleSave} disabled={saveMutation.isPending}>
+            <Save className="h-4 w-4" /> {saveMutation.isPending ? 'Saqlanmoqda...' : 'Saqlash'}
           </Button>
         </div>
       </div>
 
-      {/* Cached posts */}
       <div>
-        <h3 className="mb-3 text-lg font-semibold text-foreground">Keshlangan postlar</h3>
-        {postsLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          </div>
-        ) : posts.length > 0 ? (
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-            {posts.map(post => (
-              <a key={post.id} href={post.permalink} target="_blank" rel="noopener noreferrer"
-                className="group overflow-hidden rounded-xl border border-border bg-card transition-all hover:ocean-shadow">
-                <div className="flex h-32 items-center justify-center bg-muted overflow-hidden">
-                  {(post.media_url || post.thumbnail_url) ? (
-                    <img src={post.thumbnail_url || post.media_url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Badge variant="outline" className="text-xs">
-                      {post.media_type === 'VIDEO' ? '🎥' : post.media_type === 'CAROUSEL_ALBUM' ? '🖼️' : '📷'} {post.media_type}
-                    </Badge>
-                  )}
+        <h3 className="mb-3 text-lg font-semibold text-foreground">Saytdagi preview</h3>
+        {videos.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {videos.map(video => (
+              <div key={video.id} className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="aspect-[9/16] bg-muted">
+                  <iframe
+                    src={video.embed_url}
+                    title={`Instagram ${video.id}`}
+                    className="h-full w-full border-0"
+                    loading="lazy"
+                    allowFullScreen
+                  />
                 </div>
                 <div className="flex items-center justify-between p-3">
-                  <span className="text-xs text-muted-foreground truncate max-w-[120px]">
-                    {post.caption?.slice(0, 30) || post.media_type}
-                  </span>
-                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Video className="h-4 w-4" />
+                    {video.kind === 'reel' ? 'Reel' : 'Post'}
+                  </div>
+                  <a href={video.permalink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+                    Ochish <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
                 </div>
-              </a>
+              </div>
             ))}
           </div>
         ) : (
           <div className="rounded-xl border border-border bg-card p-12 text-center text-muted-foreground">
-            Postlar topilmadi. "Keshni yangilash" tugmasini bosing.
+            Hozircha Instagram video linklari qo'shilmagan.
           </div>
         )}
       </div>

@@ -1,11 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Package, FolderOpen, Trophy, Image, Mail,
   Settings, Instagram, Users, ClipboardList, LogOut, ChevronLeft, ChevronRight, Droplets
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
 
 interface Props {
   collapsed: boolean;
@@ -33,16 +34,23 @@ const superAdminItems = [
 export const AdminSidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: Props) => {
   const { user, logout, isSuperAdmin } = useAuth();
   const location = useLocation();
+  const visibleNavItems = navItems.filter((item) => item.to !== '/settings' || isSuperAdmin);
+  const isCompact = collapsed && !mobileOpen;
+  const { data: unreadData } = useQuery({
+    queryKey: ['admin-contacts-unread'],
+    queryFn: () => api.get('/admin/contacts/unread-count'),
+  });
+  const unreadCount = unreadData?.data?.count || 0;
 
   const sidebarClasses = cn(
-    'fixed top-0 left-0 z-50 flex h-screen flex-col bg-sidebar transition-all duration-200',
-    collapsed ? 'w-[72px]' : 'w-[260px]',
-    'md:translate-x-0',
+    'fixed top-0 left-0 z-50 flex h-screen w-[260px] max-w-[85vw] flex-col border-r border-sidebar-border bg-sidebar shadow-2xl transition-all duration-200 md:max-w-none md:shadow-none',
+    isCompact ? 'md:w-[72px]' : 'md:w-[260px]',
     mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
   );
 
   const renderLink = (item: typeof navItems[0]) => {
     const isActive = location.pathname === item.to || (item.to !== '/' && location.pathname.startsWith(item.to));
+    const isContacts = item.to === '/contacts';
 
     return (
       <NavLink
@@ -54,13 +62,20 @@ export const AdminSidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }:
           'text-sidebar-foreground hover:bg-sidebar-accent',
           isActive && 'bg-primary text-primary-foreground border-l-4 border-accent'
         )}
-        title={collapsed ? item.label : undefined}
+        title={isCompact ? item.label : undefined}
       >
-        <item.icon className="h-5 w-5 shrink-0" />
-        {!collapsed && <span className="truncate">{item.label}</span>}
-        {!collapsed && (item as any).unread && (
+        <div className="relative shrink-0">
+          <item.icon className="h-5 w-5" />
+          {isContacts && unreadCount > 0 && isCompact && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </div>
+        {!isCompact && <span className="truncate">{item.label}</span>}
+        {!isCompact && isContacts && unreadCount > 0 && (
           <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-            5
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </NavLink>
@@ -72,9 +87,9 @@ export const AdminSidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }:
       {/* Brand */}
       <div className="flex items-center gap-3 px-4 py-5">
         <Droplets className="h-8 w-8 shrink-0 text-accent" />
-        {!collapsed && (
+        {!isCompact && (
           <div>
-            <h1 className="text-lg font-bold text-primary-foreground">ECO COMPANY</h1>
+            <h1 className="text-lg font-bold text-sidebar-accent-foreground">ECO COMPANY</h1>
             <p className="text-xs text-sidebar-foreground">Admin Panel</p>
           </div>
         )}
@@ -84,7 +99,7 @@ export const AdminSidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }:
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {navItems.map(renderLink)}
+        {visibleNavItems.map(renderLink)}
 
         {isSuperAdmin && (
           <>
@@ -96,7 +111,7 @@ export const AdminSidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }:
 
       {/* User card */}
       <div className="border-t border-sidebar-border p-3">
-        {!collapsed ? (
+        {!isCompact ? (
           <div className="rounded-lg bg-sidebar-accent p-3">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">

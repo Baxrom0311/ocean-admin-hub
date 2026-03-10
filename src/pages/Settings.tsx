@@ -1,11 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Globe, Home, BarChart3, Palette, Bot, Lock, Info } from 'lucide-react';
+import { Phone, Globe, Home, BarChart3, Palette, Bot, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
@@ -17,9 +16,17 @@ const tabs = [
   { key: 'about', label: 'Haqimizda', icon: Info },
   { key: 'stats', label: 'Statistika', icon: BarChart3 },
   { key: 'brand', label: 'Brand', icon: Palette },
-  { key: 'chatbot', label: 'Chatbot', icon: Bot },
-  { key: 'secret', label: 'Maxfiy', icon: Lock, superAdmin: true },
+  { key: 'chatbot', label: 'AI Prompt', icon: Bot },
 ];
+
+const legacyKeyFallbacks: Record<string, string[]> = {
+  address_uz: ['address'],
+  hero_subtitle_uz: ['hero_desc_uz'],
+  stats_years: ['stat_years'],
+  stats_clients: ['stat_clients'],
+  stats_products: ['stat_products'],
+  stats_cities: ['stat_cities'],
+};
 
 // Group settings by tab
 const settingsLayout: Record<string, { key: string; label: string; type?: string; rows?: number; maxLength?: number }[]> = {
@@ -29,51 +36,57 @@ const settingsLayout: Record<string, { key: string; label: string; type?: string
     { key: 'email', label: 'Email', type: 'email' },
     { key: 'address_uz', label: 'Manzil (UZ)' },
     { key: 'address_ru', label: 'Manzil (RU)' },
+    { key: 'address_en', label: 'Address (EN)' },
     { key: 'working_hours', label: 'Ish vaqti' },
     { key: 'map_embed', label: 'Xarita embed', type: 'textarea', rows: 3 },
   ],
   social: [
+    { key: 'whatsapp_url', label: '💬 WhatsApp' },
     { key: 'instagram_url', label: '📷 Instagram' },
     { key: 'telegram_url', label: '✈️ Telegram' },
     { key: 'facebook_url', label: '👤 Facebook' },
     { key: 'youtube_url', label: '▶️ YouTube' },
   ],
   hero: [
+    { key: 'hero_badge', label: 'Badge' },
     { key: 'hero_title_uz', label: 'Sarlavha (UZ)' },
     { key: 'hero_title_ru', label: 'Sarlavha (RU)' },
     { key: 'hero_title_en', label: 'Sarlavha (EN)' },
     { key: 'hero_subtitle_uz', label: 'Kichik matn (UZ)' },
-    { key: 'hero_button_text', label: 'Tugma matni' },
+    { key: 'hero_subtitle_ru', label: 'Kichik matn (RU)' },
+    { key: 'hero_subtitle_en', label: 'Kichik matn (EN)' },
   ],
   about: [
-    { key: 'about_title_uz', label: 'Sarlavha (UZ)' },
+    { key: 'about_page_title_uz', label: 'Page sarlavha (UZ)' },
+    { key: 'about_page_title_ru', label: 'Page sarlavha (RU)' },
+    { key: 'about_page_title_en', label: 'Page sarlavha (EN)' },
+    { key: 'about_section_badge_uz', label: 'Badge (UZ)' },
+    { key: 'about_section_badge_ru', label: 'Badge (RU)' },
+    { key: 'about_section_badge_en', label: 'Badge (EN)' },
+    { key: 'about_section_title_uz', label: 'Asosiy sarlavha (UZ)' },
+    { key: 'about_section_title_ru', label: 'Asosiy sarlavha (RU)' },
+    { key: 'about_section_title_en', label: 'Asosiy sarlavha (EN)' },
     { key: 'about_text_uz', label: 'Matn (UZ)', type: 'textarea', rows: 4 },
-    { key: 'about_title_ru', label: 'Sarlavha (RU)' },
     { key: 'about_text_ru', label: 'Matn (RU)', type: 'textarea', rows: 4 },
+    { key: 'about_text_en', label: 'Matn (EN)', type: 'textarea', rows: 4 },
+    { key: 'about_values_badge_uz', label: 'Qadriyatlar badge (UZ)' },
+    { key: 'about_values_badge_ru', label: 'Qadriyatlar badge (RU)' },
+    { key: 'about_values_badge_en', label: 'Qadriyatlar badge (EN)' },
+    { key: 'about_values_title_uz', label: 'Qadriyatlar sarlavha (UZ)' },
+    { key: 'about_values_title_ru', label: 'Qadriyatlar sarlavha (RU)' },
+    { key: 'about_values_title_en', label: 'Qadriyatlar sarlavha (EN)' },
   ],
   stats: [
-    { key: 'stat_years', label: 'Yillar tajriba' },
-    { key: 'stat_clients', label: 'Mijozlar' },
-    { key: 'stat_products', label: 'Mahsulotlar' },
-    { key: 'stat_cities', label: 'Shaharlar' },
+    { key: 'stats_years', label: 'Yillar tajriba' },
+    { key: 'stats_clients', label: 'Mijozlar' },
+    { key: 'stats_products', label: 'Mahsulotlar' },
+    { key: 'stats_cities', label: 'Shaharlar' },
   ],
   brand: [
-    { key: 'meta_title', label: 'Meta sarlavha' },
-    { key: 'meta_description', label: 'Meta tavsif (max 160)', type: 'textarea', rows: 2, maxLength: 160 },
+    { key: 'logo_url', label: 'Logo URL' },
   ],
   chatbot: [
-    { key: 'chatbot_welcome', label: 'Salom xabari', type: 'textarea', rows: 3 },
     { key: 'ai_system_prompt', label: 'AI System Prompt', type: 'textarea', rows: 6 },
-  ],
-  secret: [
-    { key: 'telegram_bot_token', label: 'Telegram Bot Token', type: 'password' },
-    { key: 'telegram_chat_ids', label: 'Telegram Chat IDlar' },
-    { key: 'smtp_host', label: 'SMTP Host' },
-    { key: 'smtp_user', label: 'SMTP User' },
-    { key: 'smtp_password', label: 'SMTP Password', type: 'password' },
-    { key: 'anthropic_api_key', label: 'Claude API Key', type: 'password' },
-    { key: 'cloudinary_api_key', label: 'Cloudinary API Key', type: 'password' },
-    { key: 'instagram_access_token', label: 'Instagram Access Token', type: 'password' },
   ],
 };
 
@@ -87,6 +100,7 @@ const Settings = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-settings'],
     queryFn: () => api.get('/admin/settings'),
+    enabled: isSuperAdmin,
   });
 
   // Load settings into form
@@ -96,6 +110,15 @@ const Settings = () => {
       for (const s of data.data) {
         map[s.key] = s.value || '';
       }
+
+      for (const [targetKey, legacyKeys] of Object.entries(legacyKeyFallbacks)) {
+        if (map[targetKey]) continue;
+        const legacyValue = legacyKeys.map(key => map[key]).find(Boolean);
+        if (legacyValue) {
+          map[targetKey] = legacyValue;
+        }
+      }
+
       setFormData(map);
     }
   }, [data]);
@@ -121,8 +144,21 @@ const Settings = () => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
-  const visibleTabs = tabs.filter(t => !t.superAdmin || isSuperAdmin);
   const currentFields = settingsLayout[activeTab] || [];
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="space-y-6">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <h1 className="text-2xl font-bold text-foreground">Sozlamalar</h1>
+        </motion.div>
+
+        <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+          Bu bo'lim faqat `super_admin` uchun ochiq. Integratsiya secretlari server `.env` fayli orqali boshqariladi.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -130,9 +166,13 @@ const Settings = () => {
         <h1 className="text-2xl font-bold text-foreground">Sozlamalar</h1>
       </motion.div>
 
+      <div className="rounded-xl border border-border bg-card/70 p-4 text-sm text-muted-foreground sm:p-5">
+        `SMTP`, `Telegram` va `Anthropic` credentiallari admin paneldan emas, server `.env` konfiguratsiyasi orqali boshqariladi.
+      </div>
+
       {/* Tab bar */}
-      <div className="flex gap-1 overflow-x-auto border-b border-border">
-        {visibleTabs.map(t => (
+      <div className="flex gap-1 overflow-x-auto border-b border-border pb-1">
+        {tabs.map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
             className={`flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === t.key ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
             <t.icon className="h-4 w-4" /> {t.label}
@@ -145,14 +185,8 @@ const Settings = () => {
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card p-6">
-          {activeTab === 'secret' && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-              ⚠️ Faqat super_admin ko'rishi mumkin
-            </div>
-          )}
-
-          <div className="space-y-4 max-w-lg">
+        <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+          <div className="max-w-lg space-y-4">
             {currentFields.map(field => (
               <div key={field.key}>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">{field.label}</label>

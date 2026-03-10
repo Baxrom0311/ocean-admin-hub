@@ -28,16 +28,18 @@ type FilterTab = 'all' | 'unread' | 'read';
 
 const Contacts = () => {
   const [tab, setTab] = useState<FilterTab>('all');
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Contact | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-contacts', tab],
+    queryKey: ['admin-contacts', tab, page],
     queryFn: () => api.get('/admin/contacts', {
+      page,
       is_read: tab === 'unread' ? 'false' : tab === 'read' ? 'true' : undefined,
-      per_page: 50,
+      per_page: 20,
     }),
   });
 
@@ -70,6 +72,7 @@ const Contacts = () => {
 
   const contacts: Contact[] = data?.data?.items || [];
   const unreadCount = unreadQuery.data?.data?.count || 0;
+  const totalPages = data?.data?.pages || 1;
 
   const handleSelect = (contact: Contact) => {
     setSelected(contact);
@@ -91,7 +94,7 @@ const Contacts = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-bold text-foreground">Xabarlar</h1>
         {unreadCount > 0 && (
           <Badge className="bg-destructive text-destructive-foreground">{unreadCount} ta yangi</Badge>
@@ -99,10 +102,10 @@ const Contacts = () => {
       </motion.div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 overflow-x-auto border-b border-border pb-1">
         {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors ${tab === t.key ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+          <button key={t.key} onClick={() => { setTab(t.key); setPage(1); }}
+            className={`shrink-0 px-4 py-2.5 text-sm font-medium transition-colors ${tab === t.key ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
             {t.label} {t.count !== undefined && <span className="ml-1 text-xs">({t.count})</span>}
           </button>
         ))}
@@ -117,7 +120,7 @@ const Contacts = () => {
       {/* Table */}
       {!isLoading && (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full">
+          <table className="w-full min-w-[760px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="w-8 px-4 py-3"></th>
@@ -157,9 +160,39 @@ const Contacts = () => {
         </div>
       )}
 
+      {totalPages > 1 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Sahifa {page} / {totalPages}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(prev => Math.max(1, prev - 1))}>
+              Oldingi
+            </Button>
+            {Array.from({ length: totalPages }).map((_, index) => {
+              const pageNumber = index + 1;
+              return (
+                <Button
+                  key={pageNumber}
+                  variant={page === pageNumber ? 'default' : 'outline'}
+                  size="sm"
+                  className={page === pageNumber ? 'ocean-gradient-btn text-primary-foreground hover:opacity-90' : ''}
+                  onClick={() => setPage(pageNumber)}
+                >
+                  {pageNumber}
+                </Button>
+              );
+            })}
+            <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}>
+              Keyingi
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Detail sheet */}
       <Sheet open={!!selected} onOpenChange={() => setSelected(null)}>
-        <SheetContent className="w-[420px]">
+        <SheetContent className="w-full sm:w-[420px]">
           {selected && (
             <>
               <SheetHeader>
@@ -175,7 +208,7 @@ const Contacts = () => {
                 <div className="border-t border-border" />
                 <p className="text-sm text-foreground leading-relaxed">"{selected.message}"</p>
                 <div className="border-t border-border" />
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button size="sm" className="gap-1 ocean-gradient-btn text-primary-foreground" onClick={() => {
                     markReadMutation.mutate(selected.id);
                     toast({ title: "O'qildi deb belgilandi" });

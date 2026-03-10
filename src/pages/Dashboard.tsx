@@ -44,7 +44,7 @@ const Dashboard = () => {
   });
 
   const { data: tokenData } = useQuery({
-    queryKey: ['admin-instagram-token'],
+    queryKey: ['admin-instagram-status'],
     queryFn: () => api.get('/admin/instagram/token-status'),
   });
 
@@ -53,7 +53,7 @@ const Dashboard = () => {
   const albumCount = albumsData?.data?.length ?? 0;
   const unreadCount = unreadData?.data?.count ?? 0;
   const recentContacts = contactsData?.data?.items || [];
-  const tokenStatus = tokenData?.data;
+  const instagramStatus = tokenData?.data;
 
   const statCards = [
     { label: 'Mahsulotlar', icon: Package, count: productCount, link: '/products', linkText: 'Barchasi' },
@@ -112,14 +112,16 @@ const Dashboard = () => {
             <h3 className="mb-4 text-lg font-semibold text-foreground">So'nggi xabarlar</h3>
             <div className="space-y-3">
               {recentContacts.length > 0 ? recentContacts.map((msg: any) => (
-                <div key={msg.id} className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-muted">
-                  {!msg.is_read && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />}
-                  {msg.is_read && <span className="h-2.5 w-2.5 shrink-0" />}
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">{msg.name}</p>
-                    <p className="text-xs text-muted-foreground">{msg.subject || msg.message?.slice(0, 50)}</p>
+                <div key={msg.id} className="flex flex-col gap-2 rounded-lg p-3 transition-colors hover:bg-muted sm:flex-row sm:items-center sm:gap-3">
+                  <div className="flex items-start gap-3 sm:flex-1 sm:items-center">
+                    {!msg.is_read && <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary sm:mt-0" />}
+                    {msg.is_read && <span className="mt-1 h-2.5 w-2.5 shrink-0 sm:mt-0" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{msg.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{msg.subject || msg.message?.slice(0, 50)}</p>
+                    </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</span>
+                  <span className="pl-5 text-xs text-muted-foreground sm:pl-0">{formatDate(msg.created_at)}</span>
                 </div>
               )) : (
                 <p className="text-sm text-muted-foreground">Xabarlar yo'q</p>
@@ -135,19 +137,19 @@ const Dashboard = () => {
         <div className="lg:col-span-2">
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
-              📸 Instagram Token
+              📸 Instagram videolari
             </h3>
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-muted-foreground">Holat:</span>
-                <span className={`font-medium ${tokenStatus?.is_valid ? 'text-primary' : 'text-destructive'}`}>
-                  {tokenStatus?.is_valid ? '✅ Faol' : tokenStatus ? '❌ Nofaol' : '⏳ Tekshirilmoqda...'}
+                <span className={`font-medium ${instagramStatus?.is_configured ? 'text-primary' : 'text-destructive'}`}>
+                  {instagramStatus?.is_configured ? "✅ Linklar kiritilgan" : instagramStatus ? "❌ Linklar yo'q" : '⏳ Tekshirilmoqda...'}
                 </span>
               </div>
-              {tokenStatus?.days_remaining !== undefined && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Muddati:</span>
-                  <span className="font-medium text-foreground">{tokenStatus.days_remaining} kun qoldi</span>
+              {instagramStatus?.link_count !== undefined && (
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-muted-foreground">Video soni:</span>
+                  <span className="font-medium text-foreground">{instagramStatus.link_count} ta</span>
                 </div>
               )}
             </div>

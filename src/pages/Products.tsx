@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, Filter } from 'lucide-react';
@@ -20,6 +20,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
+import { deleteMediaUrl, deleteMediaUrls } from '@/lib/media';
 
 interface Product {
   id: string;
@@ -55,18 +56,26 @@ const emptyForm = {
 };
 
 const Products = () => {
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const originalImagesRef = useRef<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-products', search],
-    queryFn: () => api.get('/admin/products', { search: search || undefined }),
+    queryKey: ['admin-products', page, search, statusFilter],
+    queryFn: () => api.get('/admin/products', {
+      page,
+      per_page: 20,
+      search: search || undefined,
+      is_active: statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined,
+      is_on_sale: statusFilter === 'sale' ? true : undefined,
+    }),
   });
 
   const { data: catData } = useQuery({
@@ -79,7 +88,7 @@ const Products = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       toast({ title: 'Mahsulot yaratildi ✅' });
-      closeDialog();
+      resetDialog();
     },
     onError: (err: Error) => toast({ title: 'Xato', description: err.message, variant: 'destructive' }),
   });
@@ -89,7 +98,7 @@ const Products = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       toast({ title: 'Mahsulot yangilandi ✅' });
-      closeDialog();
+      resetDialog();
     },
     onError: (err: Error) => toast({ title: 'Xato', description: err.message, variant: 'destructive' }),
   });
@@ -106,12 +115,14 @@ const Products = () => {
 
   const openCreate = () => {
     setEditItem(null);
+    originalImagesRef.current = [];
     setForm(emptyForm);
     setIsDialogOpen(true);
   };
 
   const openEdit = (p: Product) => {
     setEditItem(p);
+    originalImagesRef.current = [...(p.images || [])];
     setForm({
       name_uz: p.name_uz, name_ru: p.name_ru || '', name_en: p.name_en || '',
       desc_uz: p.desc_uz || '', desc_ru: p.desc_ru || '', desc_en: p.desc_en || '',
@@ -124,7 +135,18 @@ const Products = () => {
     setIsDialogOpen(true);
   };
 
-  const closeDialog = () => { setIsDialogOpen(false); setEditItem(null); setForm(emptyForm); };
+  const resetDialog = () => {
+    setIsDialogOpen(false);
+    setEditItem(null);
+    setForm(emptyForm);
+    originalImagesRef.current = [];
+  };
+
+  const closeDialog = async () => {
+    const tempImages = form.images.filter((url) => url && !originalImagesRef.current.includes(url));
+    await deleteMediaUrls(tempImages);
+    resetDialog();
+  };
 
   const handleSubmit = () => {
     if (!form.name_uz.trim()) { toast({ title: 'Nomi (UZ) majburiy', variant: 'destructive' }); return; }
@@ -155,36 +177,41 @@ const Products = () => {
   const products: Product[] = data?.data?.items || data?.data || [];
   const categories: Category[] = catData?.data || [];
   const isSaving = createMutation.isPending || updateMutation.isPending;
-
-  const filtered = products.filter(p => {
-    if (statusFilter === 'active' && !p.is_active) return false;
-    if (statusFilter === 'inactive' && p.is_active) return false;
-    if (statusFilter === 'sale' && !p.is_on_sale) return false;
-    return true;
-  });
+  const totalPages = data?.data?.pages || 1;
 
   const formatPrice = (n: number) => n.toLocaleString('uz-UZ') + " so'm";
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground">Mahsulotlar</h1>
           <Badge variant="secondary" className="bg-secondary text-primary">{products.length} ta</Badge>
         </div>
-        <Button className="gap-2 ocean-gradient-btn text-primary-foreground hover:opacity-90" onClick={openCreate}>
+        <Button className="w-full gap-2 ocean-gradient-btn text-primary-foreground hover:opacity-90 sm:w-auto" onClick={openCreate}>
           <Plus className="h-4 w-4" /> Yangi mahsulot
         </Button>
       </motion.div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <div className="relative w-full min-w-0 sm:min-w-[200px] sm:flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="h-10 pl-9" />
+          <Input
+            placeholder="Qidirish..."
+            value={search}
+            onChange={e => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="h-10 pl-9"
+          />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]">
+        <Select value={statusFilter} onValueChange={(value) => {
+          setStatusFilter(value);
+          setPage(1);
+        }}>
+          <SelectTrigger className="w-full sm:w-[150px]">
             <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Holat" />
           </SelectTrigger>
@@ -205,7 +232,7 @@ const Products = () => {
 
       {!isLoading && (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full">
+          <table className="w-full min-w-[760px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Rasm</th>
@@ -217,7 +244,7 @@ const Products = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
+              {products.map(p => (
                 <tr key={p.id} className="border-b border-border transition-colors last:border-0 hover:bg-secondary/50">
                   <td className="px-4 py-3">
                     {p.images?.[0] ? (
@@ -259,15 +286,49 @@ const Products = () => {
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 && (
+          {products.length === 0 && (
             <div className="p-12 text-center text-muted-foreground">Hech narsa topilmadi</div>
           )}
         </div>
       )}
 
+      {totalPages > 1 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Sahifa {page} / {totalPages}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(prev => Math.max(1, prev - 1))}>
+              Oldingi
+            </Button>
+            {Array.from({ length: totalPages }).map((_, index) => {
+              const pageNumber = index + 1;
+              return (
+                <Button
+                  key={pageNumber}
+                  variant={page === pageNumber ? 'default' : 'outline'}
+                  size="sm"
+                  className={page === pageNumber ? 'ocean-gradient-btn text-primary-foreground hover:opacity-90' : ''}
+                  onClick={() => setPage(pageNumber)}
+                >
+                  {pageNumber}
+                </Button>
+              );
+            })}
+            <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}>
+              Keyingi
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={v => !v && closeDialog()}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        if (!open && !isSaving) {
+          void closeDialog();
+        }
+      }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editItem ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot'}</DialogTitle>
           </DialogHeader>
@@ -276,7 +337,7 @@ const Products = () => {
               <label className="mb-1.5 block text-sm font-medium">Nomi (UZ) *</label>
               <Input value={form.name_uz} onChange={e => setForm(f => ({ ...f, name_uz: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium">Nomi (RU)</label>
                 <Input value={form.name_ru} onChange={e => setForm(f => ({ ...f, name_ru: e.target.value }))} />
@@ -303,7 +364,7 @@ const Products = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium">Narx</label>
                 <Input type="number" value={form.original_price} onChange={e => setForm(f => ({ ...f, original_price: e.target.value }))} placeholder="0" />
@@ -318,12 +379,17 @@ const Products = () => {
             <ImageUpload
               value={form.images}
               onChange={(urls) => setForm(f => ({ ...f, images: urls }))}
+              onRemove={async (url) => {
+                if (!originalImagesRef.current.includes(url)) {
+                  await deleteMediaUrl(url);
+                }
+              }}
               folder="products"
               max={5}
               label="Mahsulot rasmlari"
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Aktiv</label>
                 <Switch checked={form.is_active} onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))} />
@@ -342,9 +408,9 @@ const Products = () => {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Bekor qilish</Button>
-            <Button className="ocean-gradient-btn text-primary-foreground" onClick={handleSubmit} disabled={isSaving}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => void closeDialog()}>Bekor qilish</Button>
+            <Button className="w-full ocean-gradient-btn text-primary-foreground sm:w-auto" onClick={handleSubmit} disabled={isSaving}>
               {isSaving ? 'Saqlanmoqda...' : editItem ? 'Saqlash' : 'Yaratish'}
             </Button>
           </DialogFooter>

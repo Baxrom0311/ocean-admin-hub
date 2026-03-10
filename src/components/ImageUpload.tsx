@@ -9,7 +9,7 @@ interface ImageUploadProps {
     value: string[];
     /** Called when images change */
     onChange: (urls: string[]) => void;
-    /** Cloudinary folder */
+    /** Server-side media folder */
     folder?: string;
     /** Max files allowed */
     max?: number;
@@ -17,6 +17,8 @@ interface ImageUploadProps {
     label?: string;
     /** Accept file types */
     accept?: string;
+    /** Called before the URL is removed from local form state */
+    onRemove?: (url: string) => Promise<void> | void;
 }
 
 const ImageUpload = ({
@@ -26,6 +28,7 @@ const ImageUpload = ({
     max = 5,
     label = 'Rasmlar',
     accept = 'image/*',
+    onRemove,
 }: ImageUploadProps) => {
     const [uploading, setUploading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -50,8 +53,6 @@ const ImageUpload = ({
                 const res = await api.upload(file, folder);
                 if (res?.data?.url) {
                     newUrls.push(res.data.url);
-                } else if (res?.data?.secure_url) {
-                    newUrls.push(res.data.secure_url);
                 }
             }
 
@@ -67,9 +68,15 @@ const ImageUpload = ({
         }
     };
 
-    const removeImage = (index: number) => {
-        const updated = value.filter((_, i) => i !== index);
-        onChange(updated);
+    const removeImage = async (index: number) => {
+        const removedUrl = value[index];
+        try {
+            await onRemove?.(removedUrl);
+            const updated = value.filter((_, i) => i !== index);
+            onChange(updated);
+        } catch (err: any) {
+            toast({ title: 'Faylni o‘chirishda xato', description: err.message, variant: 'destructive' });
+        }
     };
 
     return (
@@ -133,12 +140,14 @@ export const SingleFileUpload = ({
     folder = 'ecocompany',
     label = 'Fayl',
     accept = 'image/*,application/pdf',
+    onRemove,
 }: {
     value: string;
     onChange: (url: string) => void;
     folder?: string;
     label?: string;
     accept?: string;
+    onRemove?: (url: string) => Promise<void> | void;
 }) => {
     const [uploading, setUploading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -151,8 +160,11 @@ export const SingleFileUpload = ({
         setUploading(true);
         try {
             const res = await api.upload(file, folder);
-            const url = res?.data?.url || res?.data?.secure_url;
+            const url = res?.data?.url;
             if (url) {
+                if (value && value !== url) {
+                    await onRemove?.(value);
+                }
                 onChange(url);
                 toast({ title: 'Fayl yuklandi ✅' });
             }
@@ -175,7 +187,14 @@ export const SingleFileUpload = ({
                             <img src={value} alt="" className="h-full w-full object-cover" />
                             <button
                                 type="button"
-                                onClick={() => onChange('')}
+                                onClick={async () => {
+                                    try {
+                                        await onRemove?.(value);
+                                        onChange('');
+                                    } catch (err: any) {
+                                        toast({ title: 'Faylni o‘chirishda xato', description: err.message, variant: 'destructive' });
+                                    }
+                                }}
                                 className="absolute right-0.5 top-0.5 rounded-full bg-destructive/90 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
                             >
                                 <X className="h-3 w-3" />
@@ -185,7 +204,18 @@ export const SingleFileUpload = ({
                         <div className="flex items-center gap-2 rounded-lg border border-border p-2">
                             <ImageIcon className="h-5 w-5 text-muted-foreground" />
                             <span className="max-w-[200px] truncate text-sm">{value}</span>
-                            <button type="button" onClick={() => onChange('')} className="text-destructive">
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    try {
+                                        await onRemove?.(value);
+                                        onChange('');
+                                    } catch (err: any) {
+                                        toast({ title: 'Faylni o‘chirishda xato', description: err.message, variant: 'destructive' });
+                                    }
+                                }}
+                                className="text-destructive"
+                            >
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
