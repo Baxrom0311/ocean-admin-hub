@@ -167,7 +167,7 @@ const Settings = () => {
       </motion.div>
 
       <div className="rounded-xl border border-border bg-card/70 p-4 text-sm text-muted-foreground sm:p-5">
-        `SMTP`, `Telegram` va `Anthropic` credentiallari admin paneldan emas, server `.env` konfiguratsiyasi orqali boshqariladi.
+        `SMTP`, `Telegram` va `DeepSeek` credentiallari admin paneldan emas, server `.env` konfiguratsiyasi orqali boshqariladi.
       </div>
 
       {/* Tab bar */}
