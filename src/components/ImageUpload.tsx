@@ -21,6 +21,78 @@ interface ImageUploadProps {
     onRemove?: (url: string) => Promise<void> | void;
 }
 
+const MAX_PARALLEL_UPLOADS = 3;
+const IMAGE_OPTIMIZE_THRESHOLD = 1.5 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 2560;
+const IMAGE_QUALITY = 0.82;
+
+const loadImage = (file: File): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(image);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("Rasmni o'qib bo'lmadi"));
+        };
+        image.src = objectUrl;
+    });
+
+const shouldOptimizeImage = (file: File) =>
+    file.type.startsWith('image/')
+    && !file.type.includes('svg')
+    && !file.type.includes('gif')
+    && file.size > IMAGE_OPTIMIZE_THRESHOLD;
+
+const optimizeImageFile = async (file: File): Promise<File> => {
+    if (!shouldOptimizeImage(file)) return file;
+
+    const image = await loadImage(file);
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+
+    context.drawImage(image, 0, 0, width, height);
+
+    const optimizedBlob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, 'image/webp', IMAGE_QUALITY);
+    });
+
+    if (!optimizedBlob || optimizedBlob.size >= file.size) return file;
+
+    const nextName = file.name.replace(/\.[^.]+$/, '') || 'image';
+    return new File([optimizedBlob], `${nextName}.webp`, {
+        type: 'image/webp',
+        lastModified: Date.now(),
+    });
+};
+
+const uploadInBatches = async (files: File[], folder: string) => {
+    const uploadedUrls: string[] = [];
+
+    for (let index = 0; index < files.length; index += MAX_PARALLEL_UPLOADS) {
+        const chunk = files.slice(index, index + MAX_PARALLEL_UPLOADS);
+        const results = await Promise.all(chunk.map((file) => api.upload(file, folder)));
+        results.forEach((res) => {
+            if (res?.data?.url) {
+                uploadedUrls.push(res.data.url);
+            }
+        });
+    }
+
+    return uploadedUrls;
+};
+
 const ImageUpload = ({
     value = [],
     onChange,
@@ -48,17 +120,16 @@ const ImageUpload = ({
         setUploading(true);
 
         try {
-            const newUrls: string[] = [];
-            for (const file of filesToUpload) {
-                const res = await api.upload(file, folder);
-                if (res?.data?.url) {
-                    newUrls.push(res.data.url);
-                }
-            }
+            const preparedFiles = await Promise.all(filesToUpload.map(optimizeImageFile));
+            const newUrls = await uploadInBatches(preparedFiles, folder);
 
             if (newUrls.length > 0) {
                 onChange([...value, ...newUrls]);
-                toast({ title: `${newUrls.length} ta rasm yuklandi ✅` });
+                const optimizedCount = preparedFiles.filter((file, index) => file !== filesToUpload[index]).length;
+                toast({
+                    title: `${newUrls.length} ta rasm yuklandi ✅`,
+                    description: optimizedCount > 0 ? `${optimizedCount} ta rasm optimizatsiya qilindi` : undefined,
+                });
             }
         } catch (err: any) {
             toast({ title: 'Yuklashda xato', description: err.message, variant: 'destructive' });
@@ -159,14 +230,18 @@ export const SingleFileUpload = ({
 
         setUploading(true);
         try {
-            const res = await api.upload(file, folder);
+            const preparedFile = await optimizeImageFile(file);
+            const res = await api.upload(preparedFile, folder);
             const url = res?.data?.url;
             if (url) {
                 if (value && value !== url) {
                     await onRemove?.(value);
                 }
                 onChange(url);
-                toast({ title: 'Fayl yuklandi ✅' });
+                toast({
+                    title: 'Fayl yuklandi ✅',
+                    description: preparedFile !== file ? "Rasm optimizatsiya qilindi" : undefined,
+                });
             }
         } catch (err: any) {
             toast({ title: 'Yuklashda xato', description: err.message, variant: 'destructive' });
