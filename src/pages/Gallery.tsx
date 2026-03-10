@@ -3,10 +3,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowDown, ArrowUp, Edit2, Image as ImageIcon, Images, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -33,7 +31,6 @@ interface Album {
   title_ru?: string;
   title_en?: string;
   description_uz?: string;
-  category?: string;
   is_active: boolean;
   order_index: number;
   items?: GalleryItem[];
@@ -41,7 +38,7 @@ interface Album {
 
 const emptyAlbumForm = {
   title_uz: '', title_ru: '', title_en: '', description_uz: '',
-  category: '', is_active: true, order_index: 0,
+  order_index: 0,
 };
 
 const emptyItemForm = {
@@ -162,8 +159,6 @@ const Gallery = () => {
       title_ru: album.title_ru || '',
       title_en: album.title_en || '',
       description_uz: album.description_uz || '',
-      category: album.category || '',
-      is_active: album.is_active,
       order_index: album.order_index,
     });
     setIsAlbumDialogOpen(true);
@@ -179,7 +174,6 @@ const Gallery = () => {
       title_ru: form.title_ru || undefined,
       title_en: form.title_en || undefined,
       description_uz: form.description_uz || undefined,
-      category: form.category || undefined,
     };
 
     if (editAlbum) {
@@ -301,7 +295,6 @@ const Gallery = () => {
             <div className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-semibold text-foreground">{album.title_uz}</h3>
-                {album.category && <Badge variant="outline">{album.category}</Badge>}
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm text-muted-foreground">{album.items?.length || 0} ta rasm</span>
@@ -362,14 +355,6 @@ const Gallery = () => {
             <div>
               <label className="mb-1.5 block text-sm font-medium">Tavsif (UZ)</label>
               <Textarea value={form.description_uz} onChange={e => setForm(f => ({ ...f, description_uz: e.target.value }))} rows={3} />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Kategoriya</label>
-              <Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="photo, video, event..." />
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Aktiv</label>
-              <Switch checked={form.is_active} onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))} />
             </div>
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
