@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, Globe, Home, BarChart3, Palette, Bot, Info, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import ImageUpload, { SingleFileUpload } from '@/components/ImageUpload';
-import { deleteMediaUrl } from '@/lib/media';
+import { deleteMediaUrls } from '@/lib/media';
 
 const LEGACY_PARTNER_LOGOS = [
   '/media/partners/NGMK.jpg',
@@ -132,12 +132,24 @@ const parseImageListValue = (value: unknown, fallback: string[] = []) => {
   return fallback;
 };
 
+const toMediaList = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return [value];
+  }
+  return [];
+};
+
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('contact');
   const { isSuperAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState<Record<string, string | string[]>>({});
+  const [initialFormData, setInitialFormData] = useState<Record<string, string | string[]>>({});
+  const pendingUploadUrlsRef = useRef<Set<string>>(new Set());
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-settings'],
@@ -168,21 +180,47 @@ const Settings = () => {
       }
 
       setFormData(map);
+      setInitialFormData(map);
+      pendingUploadUrlsRef.current.clear();
     }
   }, [data]);
 
+  useEffect(() => () => {
+    const pendingUrls = Array.from(pendingUploadUrlsRef.current);
+    pendingUploadUrlsRef.current.clear();
+    if (pendingUrls.length > 0) {
+      void deleteMediaUrls(pendingUrls);
+    }
+  }, []);
+
   const saveMutation = useMutation({
     mutationFn: (items: { key: string; value: string }[]) => api.put('/admin/settings/bulk', items),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
-      toast({ title: 'Sozlamalar saqlandi ✅' });
-    },
-    onError: (err: Error) => {
-      toast({ title: 'Xato', description: err.message, variant: 'destructive' });
-    },
   });
 
-  const handleSave = () => {
+  const handleMediaFieldChange = (key: string, nextValue: string | string[]) => {
+    const previousUrls = toMediaList(formData[key]);
+    const nextUrls = toMediaList(nextValue);
+    const initialUrls = new Set(toMediaList(initialFormData[key]));
+    const nextUrlSet = new Set(nextUrls);
+
+    const removedPendingUrls = previousUrls.filter(
+      (url) => !nextUrlSet.has(url) && pendingUploadUrlsRef.current.has(url),
+    );
+    if (removedPendingUrls.length > 0) {
+      removedPendingUrls.forEach((url) => pendingUploadUrlsRef.current.delete(url));
+      void deleteMediaUrls(removedPendingUrls);
+    }
+
+    nextUrls.forEach((url) => {
+      if (!initialUrls.has(url)) {
+        pendingUploadUrlsRef.current.add(url);
+      }
+    });
+
+    setFormData(prev => ({ ...prev, [key]: nextValue }));
+  };
+
+  const handleSave = async () => {
     const fields = settingsLayout[activeTab] || [];
     const items = fields.map((f) => ({
       key: f.key,
@@ -190,7 +228,48 @@ const Settings = () => {
         ? JSON.stringify(Array.isArray(formData[f.key]) ? formData[f.key] : [])
         : (typeof formData[f.key] === 'string' ? formData[f.key] : ''),
     }));
-    saveMutation.mutate(items);
+    const removedPersistedUrls = fields.flatMap((field) => {
+      if (field.type !== 'image' && field.type !== 'images') return [];
+
+      const initialUrls = toMediaList(initialFormData[field.key]);
+      const currentUrls = new Set(toMediaList(formData[field.key]));
+      return initialUrls.filter((url) => !currentUrls.has(url));
+    });
+
+    try {
+      await saveMutation.mutateAsync(items);
+
+      if (removedPersistedUrls.length > 0) {
+        await deleteMediaUrls(removedPersistedUrls);
+      }
+
+      const persistedCurrentUrls = fields.flatMap((field) =>
+        field.type === 'image' || field.type === 'images'
+          ? toMediaList(formData[field.key])
+          : [],
+      );
+      persistedCurrentUrls.forEach((url) => pendingUploadUrlsRef.current.delete(url));
+
+      setInitialFormData((prev) => {
+        const next = { ...prev };
+        fields.forEach((field) => {
+          const currentValue = formData[field.key];
+          next[field.key] = Array.isArray(currentValue)
+            ? [...currentValue]
+            : (typeof currentValue === 'string' ? currentValue : '');
+        });
+        return next;
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      toast({ title: 'Sozlamalar saqlandi ✅' });
+    } catch (err) {
+      toast({
+        title: 'Xato',
+        description: err instanceof Error ? err.message : "Sozlamalarni saqlab bo'lmadi",
+        variant: 'destructive',
+      });
+    }
   };
 
   const updateField = (key: string, value: string | string[]) => {
@@ -255,8 +334,7 @@ const Settings = () => {
                 ) : field.type === 'images' ? (
                   <ImageUpload
                     value={Array.isArray(formData[field.key]) ? formData[field.key] : []}
-                    onChange={(urls) => updateField(field.key, urls)}
-                    onRemove={deleteMediaUrl}
+                    onChange={(urls) => handleMediaFieldChange(field.key, urls)}
                     folder="partners"
                     label={field.label}
                     accept="image/*"
@@ -265,8 +343,7 @@ const Settings = () => {
                 ) : field.type === 'image' ? (
                   <SingleFileUpload
                     value={typeof formData[field.key] === 'string' ? formData[field.key] : ''}
-                    onChange={(url) => updateField(field.key, url)}
-                    onRemove={deleteMediaUrl}
+                    onChange={(url) => handleMediaFieldChange(field.key, url)}
                     folder="settings"
                     label={field.label}
                     accept="image/*"
