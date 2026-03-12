@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Globe, Home, BarChart3, Palette, Bot, Info, Users } from 'lucide-react';
+import { Phone, Globe, Home, BarChart3, Palette, Bot, Info, Users, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ const tabs = [
   { key: 'about', label: 'Haqimizda', icon: Info },
   { key: 'stats', label: 'Statistika', icon: BarChart3 },
   { key: 'brand', label: 'Brand', icon: Palette },
+  { key: 'seo', label: 'SEO', icon: Search },
   { key: 'partners', label: 'Hamkorlar', icon: Users },
   { key: 'chatbot', label: 'AI Prompt', icon: Bot },
 ];
@@ -102,6 +103,29 @@ const settingsLayout: Record<string, { key: string; label: string; type?: string
   ],
   brand: [
     { key: 'logo_url', label: 'Logo', type: 'image' },
+  ],
+  seo: [
+    { key: 'seo_keywords_uz', label: "Global kalit so'zlar (UZ, vergul bilan)", type: 'textarea', rows: 3 },
+    { key: 'seo_keywords_ru', label: "Global kalit so'zlar (RU, vergul bilan)", type: 'textarea', rows: 3 },
+    { key: 'seo_keywords_en', label: 'Global keywords (EN, comma separated)', type: 'textarea', rows: 3 },
+    { key: 'seo_home_keywords_uz', label: "Bosh sahifa kalit so'zlar (UZ)", type: 'textarea', rows: 2 },
+    { key: 'seo_home_keywords_ru', label: "Bosh sahifa kalit so'zlar (RU)", type: 'textarea', rows: 2 },
+    { key: 'seo_home_keywords_en', label: 'Homepage keywords (EN)', type: 'textarea', rows: 2 },
+    { key: 'seo_products_keywords_uz', label: "Mahsulotlar kalit so'zlar (UZ)", type: 'textarea', rows: 2 },
+    { key: 'seo_products_keywords_ru', label: "Mahsulotlar kalit so'zlar (RU)", type: 'textarea', rows: 2 },
+    { key: 'seo_products_keywords_en', label: 'Products keywords (EN)', type: 'textarea', rows: 2 },
+    { key: 'seo_about_keywords_uz', label: "Haqimizda kalit so'zlar (UZ)", type: 'textarea', rows: 2 },
+    { key: 'seo_about_keywords_ru', label: "Haqimizda kalit so'zlar (RU)", type: 'textarea', rows: 2 },
+    { key: 'seo_about_keywords_en', label: 'About keywords (EN)', type: 'textarea', rows: 2 },
+    { key: 'seo_gallery_keywords_uz', label: "Galereya kalit so'zlar (UZ)", type: 'textarea', rows: 2 },
+    { key: 'seo_gallery_keywords_ru', label: "Galereya kalit so'zlar (RU)", type: 'textarea', rows: 2 },
+    { key: 'seo_gallery_keywords_en', label: 'Gallery keywords (EN)', type: 'textarea', rows: 2 },
+    { key: 'seo_certificates_keywords_uz', label: "Sertifikatlar kalit so'zlar (UZ)", type: 'textarea', rows: 2 },
+    { key: 'seo_certificates_keywords_ru', label: "Sertifikatlar kalit so'zlar (RU)", type: 'textarea', rows: 2 },
+    { key: 'seo_certificates_keywords_en', label: 'Certificates keywords (EN)', type: 'textarea', rows: 2 },
+    { key: 'seo_contact_keywords_uz', label: "Aloqa kalit so'zlar (UZ)", type: 'textarea', rows: 2 },
+    { key: 'seo_contact_keywords_ru', label: "Aloqa kalit so'zlar (RU)", type: 'textarea', rows: 2 },
+    { key: 'seo_contact_keywords_en', label: 'Contact keywords (EN)', type: 'textarea', rows: 2 },
   ],
   partners: [
     { key: 'partner_logos', label: 'Hamkor logolari', type: 'images' },
@@ -318,9 +342,14 @@ const Settings = () => {
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-          <div className="max-w-lg space-y-4">
+          {activeTab === 'seo' && (
+            <div className="mb-5 rounded-xl border border-border bg-muted/50 p-4 text-sm text-muted-foreground">
+              Kalit so'zlarni vergul bilan yozing. Yangi mahsulot, kategoriya va rasmlar uchun sitemap, structured data va image SEO signallari baribir avtomatik yangilanadi; bu maydonlar esa qo'shimcha target querylarni kuchaytiradi.
+            </div>
+          )}
+          <div className={activeTab === 'seo' ? 'grid max-w-4xl gap-4 md:grid-cols-2' : 'max-w-lg space-y-4'}>
             {currentFields.map(field => (
-              <div key={field.key}>
+              <div key={field.key} className={activeTab === 'seo' && field.key.startsWith('seo_keywords') ? 'md:col-span-2' : ''}>
                 {field.type !== 'image' && (
                   <label className="mb-1.5 block text-sm font-medium text-foreground">{field.label}</label>
                 )}
