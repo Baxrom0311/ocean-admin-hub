@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Package, Trophy, Image, Mail, Plus, FolderOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { api } from '@/lib/api';
+import { api, type ApiResponse, type Page, type InstagramStatus } from '@/lib/api';
 
 const quickActions = [
   { label: 'Mahsulot', link: '/products', icon: Package },
@@ -20,36 +20,36 @@ const Dashboard = () => {
   // Fetch real counts
   const { data: productsData } = useQuery({
     queryKey: ['admin-products-count'],
-    queryFn: () => api.get('/admin/products', { per_page: 1 }),
+    queryFn: () => api.get<ApiResponse<Page<unknown>>>('/admin/products', { per_page: 1 }),
   });
 
   const { data: certsData } = useQuery({
     queryKey: ['admin-certs-count'],
-    queryFn: () => api.get('/admin/certificates', { per_page: 1 }),
+    queryFn: () => api.get<ApiResponse<unknown[]>>('/admin/certificates', { per_page: 1 }),
   });
 
   const { data: albumsData } = useQuery({
     queryKey: ['admin-albums-count'],
-    queryFn: () => api.get('/admin/gallery/albums'),
+    queryFn: () => api.get<ApiResponse<unknown[]>>('/admin/gallery/albums'),
   });
 
   const { data: unreadData } = useQuery({
     queryKey: ['admin-contacts-unread'],
-    queryFn: () => api.get('/admin/contacts/unread-count'),
+    queryFn: () => api.get<ApiResponse<{ count: number }>>('/admin/contacts/unread-count'),
   });
 
   const { data: contactsData } = useQuery({
     queryKey: ['admin-contacts-recent'],
-    queryFn: () => api.get('/admin/contacts', { per_page: 5 }),
+    queryFn: () => api.get<ApiResponse<Page<{ id: string; name: string; subject?: string; message: string; created_at: string; is_read: boolean }>>>('/admin/contacts', { per_page: 5 }),
   });
 
   const { data: tokenData } = useQuery({
     queryKey: ['admin-instagram-status'],
-    queryFn: () => api.get('/admin/instagram/token-status'),
+    queryFn: () => api.get<ApiResponse<InstagramStatus>>('/admin/instagram/token-status'),
   });
 
-  const productCount = productsData?.data?.total ?? productsData?.data?.length ?? 0;
-  const certCount = certsData?.data?.total ?? certsData?.data?.length ?? 0;
+  const productCount = productsData?.data?.total ?? 0;
+  const certCount = certsData?.data?.length ?? 0;
   const albumCount = albumsData?.data?.length ?? 0;
   const unreadCount = unreadData?.data?.count ?? 0;
   const recentContacts = contactsData?.data?.items || [];
@@ -111,7 +111,7 @@ const Dashboard = () => {
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="mb-4 text-lg font-semibold text-foreground">So'nggi xabarlar</h3>
             <div className="space-y-3">
-              {recentContacts.length > 0 ? recentContacts.map((msg: any) => (
+              {recentContacts.length > 0 ? recentContacts.map((msg) => (
                 <div key={msg.id} className="flex flex-col gap-2 rounded-lg p-3 transition-colors hover:bg-muted sm:flex-row sm:items-center sm:gap-3">
                   <div className="flex items-start gap-3 sm:flex-1 sm:items-center">
                     {!msg.is_read && <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary sm:mt-0" />}

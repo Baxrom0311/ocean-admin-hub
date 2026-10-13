@@ -22,8 +22,8 @@ const LoginPage = () => {
     try {
       await login(email, password);
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || 'Login xatosi');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login xatosi');
     } finally {
       setLoading(false);
     }

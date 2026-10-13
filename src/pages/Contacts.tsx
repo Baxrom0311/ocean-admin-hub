@@ -10,7 +10,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, type ApiResponse, type Page } from '@/lib/api';
 
 interface Contact {
   id: string;
@@ -36,7 +36,7 @@ const Contacts = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-contacts', tab, page],
-    queryFn: () => api.get('/admin/contacts', {
+    queryFn: () => api.get<ApiResponse<Page<Contact>>>('/admin/contacts', {
       page,
       is_read: tab === 'unread' ? 'false' : tab === 'read' ? 'true' : undefined,
       per_page: 20,
@@ -45,7 +45,7 @@ const Contacts = () => {
 
   const unreadQuery = useQuery({
     queryKey: ['admin-contacts-unread'],
-    queryFn: () => api.get('/admin/contacts/unread-count'),
+    queryFn: () => api.get<ApiResponse<{ count: number }>>('/admin/contacts/unread-count'),
   });
 
   const markReadMutation = useMutation({

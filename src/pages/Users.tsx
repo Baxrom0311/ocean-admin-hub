@@ -17,7 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, type ApiResponse, type Page } from '@/lib/api';
 
 interface User {
   id: string;
@@ -46,7 +46,7 @@ const UsersPage = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users'],
-    queryFn: () => api.get('/admin/users'),
+    queryFn: () => api.get<ApiResponse<User[]>>('/admin/users'),
   });
 
   const createMutation = useMutation({

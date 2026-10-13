@@ -1,29 +1,20 @@
-# 🌿 ECO COMPANY — Admin Panel
+# ECO COMPANY admin
 
-Admin panel for managing ECO COMPANY's website content, products, gallery, certificates, and more.
+React + TypeScript + Vite admin panel. Mahsulotlar, kategoriyalar, sertifikatlar, galereya, kontaktlar, Instagram linklari, sozlamalar va adminlarni boshqaradi.
 
-## Tech Stack
-
-- **Frontend**: React 18 + TypeScript + Vite
-- **UI**: Shadcn/ui + Radix UI + TailwindCSS
-- **State**: TanStack React Query
-- **Auth**: JWT Token-based authentication
-
-## Getting Started
-
-```bash
-npm install
+```sh
+npm ci
+cp .env.example .env
 npm run dev
 ```
 
-The admin panel runs at `http://localhost:8080`.
+Admin `http://localhost:8081` da ochiladi. Backend CORS sozlamasiga shu originni qo‘shing. Production builddan oldin `VITE_API_URL` ni API domeniga sozlang. Faqat `VITE_` bilan boshlangan public qiymatlarni frontendga kiriting; integratsiya kalitlari backendda saqlanadi.
 
-## Backend API
-
-The admin panel connects to the ECO COMPANY Backend API. Ensure the backend is running at `http://localhost:8000`.
-
-## Build
-
-```bash
+```sh
+npm run typecheck
+npm run lint
+npm test
 npm run build
 ```
+
+Build typecheck ham bajaradi. `dist/` ni statik hostingga joylang, SPA route lar uchun `index.html` fallback sozlang. Logout akkauntning barcha tokenlarini serverda bekor qiladi va lokal query cache ni tozalaydi.

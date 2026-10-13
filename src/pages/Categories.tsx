@@ -12,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, type ApiResponse } from '@/lib/api';
 
 interface Category {
   id: string;
@@ -35,11 +35,11 @@ const Categories = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-categories'],
-    queryFn: () => api.get('/admin/categories'),
+    queryFn: () => api.get<ApiResponse<Category[]>>('/admin/categories'),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/admin/categories', data),
+    mutationFn: (data: Record<string, unknown>) => api.post('/admin/categories', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       toast({ title: 'Kategoriya yaratildi ✅' });
@@ -49,7 +49,7 @@ const Categories = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => api.put(`/admin/categories/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.put(`/admin/categories/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       toast({ title: 'Kategoriya yangilandi ✅' });
@@ -89,7 +89,7 @@ const Categories = () => {
   const handleSubmit = () => {
     if (!form.name_uz.trim()) { toast({ title: 'Nomi (UZ) majburiy', variant: 'destructive' }); return; }
     if (!form.slug.trim()) { toast({ title: 'Slug majburiy', variant: 'destructive' }); return; }
-    const payload = { ...form, name_ru: form.name_ru || undefined, name_en: form.name_en || undefined };
+    const payload = { ...form, name_ru: form.name_ru || null, name_en: form.name_en || null };
     if (editItem) {
       updateMutation.mutate({ id: editItem.id, data: payload });
     } else {

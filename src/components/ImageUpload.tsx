@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import { deleteMediaUrls } from '@/lib/media';
 import { useToast } from '@/hooks/use-toast';
 
 interface ImageUploadProps {
@@ -80,14 +81,19 @@ const optimizeImageFile = async (file: File): Promise<File> => {
 const uploadInBatches = async (files: File[], folder: string) => {
     const uploadedUrls: string[] = [];
 
-    for (let index = 0; index < files.length; index += MAX_PARALLEL_UPLOADS) {
-        const chunk = files.slice(index, index + MAX_PARALLEL_UPLOADS);
-        const results = await Promise.all(chunk.map((file) => api.upload(file, folder)));
-        results.forEach((res) => {
-            if (res?.data?.url) {
-                uploadedUrls.push(res.data.url);
+    try {
+        for (let index = 0; index < files.length; index += MAX_PARALLEL_UPLOADS) {
+            const results = await Promise.allSettled(files.slice(index, index + MAX_PARALLEL_UPLOADS)
+                .map((file) => api.upload(file, folder)));
+            for (const result of results) {
+                if (result.status === 'fulfilled') uploadedUrls.push(result.value.data.url);
             }
-        });
+            const failure = results.find((result) => result.status === 'rejected');
+            if (failure?.status === 'rejected') throw failure.reason;
+        }
+    } catch (error) {
+        await deleteMediaUrls(uploadedUrls);
+        throw error;
     }
 
     return uploadedUrls;
@@ -131,8 +137,8 @@ const ImageUpload = ({
                     description: optimizedCount > 0 ? `${optimizedCount} ta rasm optimizatsiya qilindi` : undefined,
                 });
             }
-        } catch (err: any) {
-            toast({ title: 'Yuklashda xato', description: err.message, variant: 'destructive' });
+        } catch (err: unknown) {
+            toast({ title: 'Yuklashda xato', description: err instanceof Error ? err.message : "Xatolik yuz berdi", variant: 'destructive' });
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = '';
@@ -145,8 +151,8 @@ const ImageUpload = ({
             await onRemove?.(removedUrl);
             const updated = value.filter((_, i) => i !== index);
             onChange(updated);
-        } catch (err: any) {
-            toast({ title: 'Faylni o‘chirishda xato', description: err.message, variant: 'destructive' });
+        } catch (err: unknown) {
+            toast({ title: 'Faylni o‘chirishda xato', description: err instanceof Error ? err.message : "Xatolik yuz berdi", variant: 'destructive' });
         }
     };
 
@@ -243,8 +249,8 @@ export const SingleFileUpload = ({
                     description: preparedFile !== file ? "Rasm optimizatsiya qilindi" : undefined,
                 });
             }
-        } catch (err: any) {
-            toast({ title: 'Yuklashda xato', description: err.message, variant: 'destructive' });
+        } catch (err: unknown) {
+            toast({ title: 'Yuklashda xato', description: err instanceof Error ? err.message : "Xatolik yuz berdi", variant: 'destructive' });
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = '';
@@ -266,8 +272,8 @@ export const SingleFileUpload = ({
                                     try {
                                         await onRemove?.(value);
                                         onChange('');
-                                    } catch (err: any) {
-                                        toast({ title: 'Faylni o‘chirishda xato', description: err.message, variant: 'destructive' });
+                                    } catch (err: unknown) {
+                                        toast({ title: 'Faylni o‘chirishda xato', description: err instanceof Error ? err.message : "Xatolik yuz berdi", variant: 'destructive' });
                                     }
                                 }}
                                 className="absolute right-0.5 top-0.5 rounded-full bg-destructive/90 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
@@ -285,8 +291,8 @@ export const SingleFileUpload = ({
                                     try {
                                         await onRemove?.(value);
                                         onChange('');
-                                    } catch (err: any) {
-                                        toast({ title: 'Faylni o‘chirishda xato', description: err.message, variant: 'destructive' });
+                                    } catch (err: unknown) {
+                                        toast({ title: 'Faylni o‘chirishda xato', description: err instanceof Error ? err.message : "Xatolik yuz berdi", variant: 'destructive' });
                                     }
                                 }}
                                 className="text-destructive"

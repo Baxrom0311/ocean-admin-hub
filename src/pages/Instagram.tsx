@@ -5,7 +5,7 @@ import { ExternalLink, Plus, Save, Trash2, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, type ApiResponse, type Page, type InstagramStatus } from '@/lib/api';
 
 interface InstagramVideo {
   id: string;
@@ -23,12 +23,12 @@ const InstagramPage = () => {
 
   const { data: statusData, isLoading: statusLoading } = useQuery({
     queryKey: ['admin-instagram-status'],
-    queryFn: () => api.get('/admin/instagram/token-status'),
+    queryFn: () => api.get<ApiResponse<InstagramStatus>>('/admin/instagram/token-status'),
   });
 
   const { data: linksData, isLoading: linksLoading } = useQuery({
     queryKey: ['admin-instagram-links'],
-    queryFn: () => api.get('/admin/instagram/links'),
+    queryFn: () => api.get<ApiResponse<InstagramVideo[]>>('/admin/instagram/links'),
   });
 
   useEffect(() => {

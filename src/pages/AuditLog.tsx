@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { api } from '@/lib/api';
+import { api, type ApiResponse, type Page } from '@/lib/api';
 
 interface AuditItem {
   id: string;
@@ -11,7 +11,7 @@ interface AuditItem {
   action: string;
   entity_type: string;
   entity_id: string;
-  changes?: any;
+  changes?: Record<string, unknown>;
   ip_address?: string;
   created_at: string;
 }
@@ -27,7 +27,7 @@ const AuditLog = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-audit-logs', entityFilter],
-    queryFn: () => api.get('/admin/audit-logs', {
+    queryFn: () => api.get<ApiResponse<Page<AuditItem>>>('/admin/audit-logs', {
       entity_type: entityFilter !== 'all' ? entityFilter : undefined,
       per_page: 50,
     }),

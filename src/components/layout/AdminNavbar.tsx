@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { api } from '@/lib/api';
+import { api, type ApiResponse } from '@/lib/api';
 
 interface Props {
   onMenuClick: () => void;
@@ -36,7 +36,7 @@ export const AdminNavbar = ({ onMenuClick, sidebarCollapsed }: Props) => {
   const location = useLocation();
   const { data: unreadData } = useQuery({
     queryKey: ['admin-contacts-unread'],
-    queryFn: () => api.get('/admin/contacts/unread-count'),
+    queryFn: () => api.get<ApiResponse<{ count: number }>>('/admin/contacts/unread-count'),
   });
 
   const title = pageTitles[location.pathname] || 'Dashboard';

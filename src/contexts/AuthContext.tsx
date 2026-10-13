@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface User {
   id: string;
@@ -28,40 +29,54 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const queryClient = useQueryClient();
   const [token, setToken] = useState<string | null>(localStorage.getItem('eco_admin_token'));
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('eco_admin_user');
-    return saved ? JSON.parse(saved) : null;
+    try { return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
   const [loading, setLoading] = useState(true);
 
-  const logout = useCallback(() => {
+  const clearSession = useCallback(() => {
     localStorage.removeItem('eco_admin_token');
     localStorage.removeItem('eco_admin_user');
     setToken(null);
     setUser(null);
-  }, []);
+    void queryClient.cancelQueries();
+    queryClient.clear();
+  }, [queryClient]);
+
+  const logout = useCallback(() => {
+    const revoke = api.post('/auth/logout');
+    clearSession();
+    void revoke.catch(() => undefined);
+  }, [clearSession]);
+
+  useEffect(() => {
+    window.addEventListener('eco-auth-expired', clearSession);
+    return () => window.removeEventListener('eco-auth-expired', clearSession);
+  }, [clearSession]);
 
   useEffect(() => {
     const verify = async () => {
       if (!token) { setLoading(false); return; }
       try {
-        const me = await api.get('/auth/me');
+        const me = await api.get<User>('/auth/me');
         if (me) {
           setUser(me);
           localStorage.setItem('eco_admin_user', JSON.stringify(me));
         }
       } catch {
-        logout();
+        clearSession();
       } finally {
         setLoading(false);
       }
     };
     verify();
-  }, [token, logout]);
+  }, [token, clearSession]);
 
   const login = async (email: string, password: string) => {
-    const res = await api.post('/auth/login', { email, password });
+    const res = await api.post<{ access_token: string; user: User }>('/auth/login', { email, password });
     if (res?.access_token) {
       localStorage.setItem('eco_admin_token', res.access_token);
       localStorage.setItem('eco_admin_user', JSON.stringify(res.user));

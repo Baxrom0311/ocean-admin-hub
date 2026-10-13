@@ -11,14 +11,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, type ApiResponse, type Page } from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
 import { deleteMediaUrl, deleteMediaUrls } from '@/lib/media';
 
@@ -33,6 +33,7 @@ interface Product {
   original_price?: number;
   discount_price?: number;
   is_on_sale: boolean;
+  is_discount_active?: boolean;
   is_active: boolean;
   is_featured: boolean;
   is_new: boolean;
@@ -69,7 +70,7 @@ const Products = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products', page, search, statusFilter],
-    queryFn: () => api.get('/admin/products', {
+    queryFn: () => api.get<ApiResponse<Page<Product>>>('/admin/products', {
       page,
       per_page: 20,
       search: search || undefined,
@@ -80,11 +81,11 @@ const Products = () => {
 
   const { data: catData } = useQuery({
     queryKey: ['admin-categories'],
-    queryFn: () => api.get('/admin/categories'),
+    queryFn: () => api.get<ApiResponse<Category[]>>('/admin/categories'),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/admin/products', data),
+    mutationFn: (data: Record<string, unknown>) => api.post('/admin/products', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       toast({ title: 'Mahsulot yaratildi ✅' });
@@ -94,7 +95,7 @@ const Products = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => api.put(`/admin/products/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.put(`/admin/products/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       toast({ title: 'Mahsulot yangilandi ✅' });
@@ -150,17 +151,17 @@ const Products = () => {
 
   const handleSubmit = () => {
     if (!form.name_uz.trim()) { toast({ title: 'Nomi (UZ) majburiy', variant: 'destructive' }); return; }
-    const payload: any = {
+    const payload = {
       name_uz: form.name_uz,
-      name_ru: form.name_ru || undefined,
-      name_en: form.name_en || undefined,
-      desc_uz: form.desc_uz || undefined,
-      desc_ru: form.desc_ru || undefined,
-      desc_en: form.desc_en || undefined,
-      original_price: form.original_price ? parseFloat(form.original_price) : undefined,
-      discount_price: form.discount_price ? parseFloat(form.discount_price) : undefined,
+      name_ru: form.name_ru || null,
+      name_en: form.name_en || null,
+      desc_uz: form.desc_uz || null,
+      desc_ru: form.desc_ru || null,
+      desc_en: form.desc_en || null,
+      original_price: form.original_price ? parseFloat(form.original_price) : null,
+      discount_price: form.discount_price ? parseFloat(form.discount_price) : null,
       images: form.images,
-      category_id: form.category_id || undefined,
+      category_id: form.category_id || null,
       is_active: form.is_active,
       is_featured: form.is_featured,
       is_new: form.is_new,
@@ -174,7 +175,7 @@ const Products = () => {
     }
   };
 
-  const products: Product[] = data?.data?.items || data?.data || [];
+  const products: Product[] = data?.data?.items || [];
   const categories: Category[] = catData?.data || [];
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const totalPages = data?.data?.pages || 1;
@@ -262,9 +263,9 @@ const Products = () => {
                     <Badge variant="outline">{p.category?.name_uz || '—'}</Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="font-medium text-foreground">{p.original_price ? formatPrice(p.original_price) : '—'}</span>
-                    {p.discount_price && (
-                      <span className="ml-2 text-sm text-muted-foreground line-through">{formatPrice(p.discount_price)}</span>
+                    <span className="font-medium text-foreground">{(p.is_discount_active ? p.discount_price : p.original_price) != null ? formatPrice(p.is_discount_active ? p.discount_price : p.original_price) : '—'}</span>
+                    {p.is_discount_active && p.original_price != null && (
+                      <span className="ml-2 text-sm text-muted-foreground line-through">{formatPrice(p.original_price)}</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -274,7 +275,7 @@ const Products = () => {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEdit(p)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" aria-label={`Tahrirlash: ${p.name_uz}`} onClick={() => openEdit(p)}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(p.id)}>
@@ -331,6 +332,7 @@ const Products = () => {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editItem ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot'}</DialogTitle>
+            <DialogDescription>Mahsulot ma’lumotlarini kiriting va saqlang.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>

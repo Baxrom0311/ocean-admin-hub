@@ -6,7 +6,7 @@ import {
   Settings, Instagram, Users, ClipboardList, LogOut, ChevronLeft, ChevronRight, Droplets
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api } from '@/lib/api';
+import { api, type ApiResponse } from '@/lib/api';
 
 interface Props {
   collapsed: boolean;
@@ -38,7 +38,7 @@ export const AdminSidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }:
   const isCompact = collapsed && !mobileOpen;
   const { data: unreadData } = useQuery({
     queryKey: ['admin-contacts-unread'],
-    queryFn: () => api.get('/admin/contacts/unread-count'),
+    queryFn: () => api.get<ApiResponse<{ count: number }>>('/admin/contacts/unread-count'),
   });
   const unreadCount = unreadData?.data?.count || 0;
 

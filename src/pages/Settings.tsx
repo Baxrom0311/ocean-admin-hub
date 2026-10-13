@@ -7,9 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, type ApiResponse, type Page } from '@/lib/api';
 import ImageUpload, { SingleFileUpload } from '@/components/ImageUpload';
 import { deleteMediaUrls } from '@/lib/media';
+
+const asText = (value: unknown): string => typeof value === 'string' ? value : '';
+const asImages = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 
 const LEGACY_PARTNER_LOGOS = [
   '/media/partners/NGMK.jpg',
@@ -177,7 +180,7 @@ const Settings = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-settings'],
-    queryFn: () => api.get('/admin/settings'),
+    queryFn: () => api.get<ApiResponse<{ key: string; value: string | null }[]>>('/admin/settings'),
     enabled: isSuperAdmin,
   });
 
@@ -249,8 +252,8 @@ const Settings = () => {
     const items = fields.map((f) => ({
       key: f.key,
       value: f.type === 'images'
-        ? JSON.stringify(Array.isArray(formData[f.key]) ? formData[f.key] : [])
-        : (typeof formData[f.key] === 'string' ? formData[f.key] : ''),
+        ? JSON.stringify(asImages(formData[f.key]))
+        : (asText(formData[f.key])),
     }));
     const removedPersistedUrls = fields.flatMap((field) => {
       if (field.type !== 'image' && field.type !== 'images') return [];
@@ -355,14 +358,14 @@ const Settings = () => {
                 )}
                 {field.type === 'textarea' ? (
                   <Textarea
-                    value={typeof formData[field.key] === 'string' ? formData[field.key] : ''}
+                    value={asText(formData[field.key])}
                     onChange={e => updateField(field.key, e.target.value)}
                     rows={field.rows || 3}
                     maxLength={field.maxLength}
                   />
                 ) : field.type === 'images' ? (
                   <ImageUpload
-                    value={Array.isArray(formData[field.key]) ? formData[field.key] : []}
+                    value={asImages(formData[field.key])}
                     onChange={(urls) => handleMediaFieldChange(field.key, urls)}
                     folder="partners"
                     label={field.label}
@@ -371,7 +374,7 @@ const Settings = () => {
                   />
                 ) : field.type === 'image' ? (
                   <SingleFileUpload
-                    value={typeof formData[field.key] === 'string' ? formData[field.key] : ''}
+                    value={asText(formData[field.key])}
                     onChange={(url) => handleMediaFieldChange(field.key, url)}
                     folder="settings"
                     label={field.label}
@@ -380,7 +383,7 @@ const Settings = () => {
                 ) : (
                   <Input
                     type={field.type || 'text'}
-                    value={typeof formData[field.key] === 'string' ? formData[field.key] : ''}
+                    value={asText(formData[field.key])}
                     onChange={e => updateField(field.key, e.target.value)}
                   />
                 )}

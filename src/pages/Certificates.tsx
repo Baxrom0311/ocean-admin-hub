@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, type ApiResponse } from '@/lib/api';
 import { SingleFileUpload } from '@/components/ImageUpload';
 import { deleteMediaUrl } from '@/lib/media';
 
@@ -45,11 +45,11 @@ const Certificates = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-certificates'],
-    queryFn: () => api.get('/admin/certificates'),
+    queryFn: () => api.get<ApiResponse<Certificate[]>>('/admin/certificates'),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/admin/certificates', data),
+    mutationFn: (data: Record<string, unknown>) => api.post('/admin/certificates', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-certificates'] });
       toast({ title: 'Sertifikat yaratildi ✅' });
@@ -59,7 +59,7 @@ const Certificates = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => api.put(`/admin/certificates/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.put(`/admin/certificates/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-certificates'] });
       toast({ title: 'Sertifikat yangilandi ✅' });
@@ -113,11 +113,11 @@ const Certificates = () => {
   const handleSubmit = () => {
     if (!form.title_uz.trim()) { toast({ title: 'Sarlavha (UZ) majburiy', variant: 'destructive' }); return; }
     if (!form.file_url.trim()) { toast({ title: 'Fayl yuklash majburiy', variant: 'destructive' }); return; }
-    const payload: any = {
+    const payload = {
       ...form,
       file_type: 'image',
-      title_ru: form.title_ru || undefined, title_en: form.title_en || undefined,
-      preview_url: form.preview_url || undefined,
+      title_ru: form.title_ru || null, title_en: form.title_en || null,
+      preview_url: form.preview_url || null,
       is_active: true,
       is_downloadable: true,
     };
@@ -128,7 +128,7 @@ const Certificates = () => {
     }
   };
 
-  const certs: Certificate[] = data?.data?.items || data?.data || [];
+  const certs: Certificate[] = data?.data || [];
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   if (isLoading) {

@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { api } from '@/lib/api';
+import { api, type ApiResponse } from '@/lib/api';
 import ImageUpload, { SingleFileUpload } from '@/components/ImageUpload';
 import { deleteMediaUrl, deleteMediaUrls } from '@/lib/media';
 
@@ -64,7 +64,7 @@ const Gallery = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-gallery'],
-    queryFn: () => api.get('/admin/gallery/albums'),
+    queryFn: () => api.get<ApiResponse<Album[]>>('/admin/gallery/albums'),
   });
 
   const createMutation = useMutation({
@@ -101,7 +101,7 @@ const Gallery = () => {
   });
 
   const addItemMutation = useMutation({
-    mutationFn: ({ albumId, data }: { albumId: string; data: any }) => api.post(`/admin/gallery/albums/${albumId}/items`, data),
+    mutationFn: ({ albumId, data }: { albumId: string; data: Record<string, unknown> }) => api.post(`/admin/gallery/albums/${albumId}/items`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-gallery'] });
     },
@@ -109,7 +109,7 @@ const Gallery = () => {
   });
 
   const updateItemMutation = useMutation({
-    mutationFn: ({ albumId, itemId, data }: { albumId: string; itemId: string; data: any }) => api.put(`/admin/gallery/albums/${albumId}/items/${itemId}`, data),
+    mutationFn: ({ albumId, itemId, data }: { albumId: string; itemId: string; data: Record<string, unknown> }) => api.put(`/admin/gallery/albums/${albumId}/items/${itemId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-gallery'] });
       toast({ title: 'Rasm yangilandi ✅' });
@@ -169,11 +169,11 @@ const Gallery = () => {
       toast({ title: 'Sarlavha (UZ) majburiy', variant: 'destructive' });
       return;
     }
-    const payload: any = {
+    const payload = {
       ...form,
-      title_ru: form.title_ru || undefined,
-      title_en: form.title_en || undefined,
-      description_uz: form.description_uz || undefined,
+      title_ru: form.title_ru || null,
+      title_en: form.title_en || null,
+      description_uz: form.description_uz || null,
     };
 
     if (editAlbum) {
@@ -197,11 +197,17 @@ const Gallery = () => {
   const handleAddItems = async () => {
     if (!addItemsAlbumId || itemForm.images.length === 0) return;
 
-    for (const url of itemForm.images) {
-      await addItemMutation.mutateAsync({
-        albumId: addItemsAlbumId,
-        data: { file_url: url, file_type: 'image' },
-      });
+    try {
+      for (const url of itemForm.images) {
+        await addItemMutation.mutateAsync({
+          albumId: addItemsAlbumId,
+          data: { file_url: url, file_type: 'image' },
+        });
+        setItemForm(previous => ({ images: previous.images.filter(image => image !== url) }));
+      }
+    } catch {
+      // Keep only unsaved uploads in the form so retry cannot create duplicates.
+      return;
     }
 
     toast({ title: `${itemForm.images.length} ta rasm qo'shildi ✅` });
