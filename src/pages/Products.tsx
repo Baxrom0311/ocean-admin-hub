@@ -53,7 +53,7 @@ const emptyForm = {
   name_uz: '', name_ru: '', name_en: '', desc_uz: '', desc_ru: '', desc_en: '',
   original_price: '', discount_price: '',
   images: [] as string[],
-  category_id: '', is_active: true, is_featured: false, is_new: false, is_on_sale: false, order_index: 0,
+  category_id: '', is_active: true, is_featured: false, is_new: false, is_on_sale: false, is_discount_active: false, order_index: 0,
 };
 
 const Products = () => {
@@ -130,7 +130,7 @@ const Products = () => {
       original_price: p.original_price?.toString() || '', discount_price: p.discount_price?.toString() || '',
       images: p.images || [],
       category_id: p.category_id || p.category?.id || '',
-      is_active: p.is_active, is_featured: p.is_featured, is_new: p.is_new, is_on_sale: p.is_on_sale,
+      is_active: p.is_active, is_featured: p.is_featured, is_new: p.is_new, is_on_sale: p.is_on_sale, is_discount_active: p.is_discount_active ?? false,
       order_index: p.order_index,
     });
     setIsDialogOpen(true);
@@ -166,6 +166,7 @@ const Products = () => {
       is_featured: form.is_featured,
       is_new: form.is_new,
       is_on_sale: form.is_on_sale,
+      is_discount_active: form.is_discount_active,
       order_index: form.order_index,
     };
     if (editItem) {
@@ -407,6 +408,10 @@ const Products = () => {
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Aksiya</label>
                 <Switch checked={form.is_on_sale} onCheckedChange={v => setForm(f => ({ ...f, is_on_sale: v }))} />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Chegirma faol</label>
+                <Switch checked={form.is_discount_active} onCheckedChange={v => setForm(f => ({ ...f, is_discount_active: v }))} />
               </div>
             </div>
           </div>
